@@ -93,7 +93,6 @@ def another_conversion_try(path):
                                  encoding='iso8859-1')
 
 
-
 def print_record_info(dat_file_path):
     """
     Print information about the WFDB record to help with debugging
@@ -117,8 +116,8 @@ if __name__ == "__main__":
 
     # Example for converting only ECG channel
     num = 4
-    path = f"data/p000020/in/3544749_000{num}"
-    out_path = f"data/p000020/out/000{num}.edf"
+    path = f"data/3544749_000{num}"
+    out_path = f"data/000{num}.edf"
     print_record_info(path)
     # another_conversion_try(path)
     convert_ecg_wfdb_to_edf(path, out_path, ecg_channel_name='II')

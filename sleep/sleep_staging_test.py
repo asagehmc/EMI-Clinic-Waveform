@@ -7,7 +7,6 @@ from matplotlib import pyplot as plt
 def graph_sleep_stages(path):
     edf = read_edf(path)
 
-
     # crop dataset (we only want data for the sleep duration)
     # start = datetime(2023, 3, 1, 23, 0, 0)
     # stop = datetime(2023, 3, 2, 6, 0, 0)
@@ -45,5 +44,5 @@ def graph_sleep_stages(path):
 
 if __name__ == "__main__":
     # path = "data/p000020/out/0005.edf"
-    path = "data/test/sleep.edf"
+    path = "data/test_sleep.edf"
     graph_sleep_stages(path)
