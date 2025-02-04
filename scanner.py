@@ -67,9 +67,9 @@ if __name__ == "__main__":
             # reporting
             num_records_handled += 1
             print(num_records_handled)
+            with open(f"filtered_{'_'.join(required_signals)}.txt", "w") as f:
+                json.dump(usable_records, f, indent=2)
 
         except Exception as e:
             print(f"Problem with [patient: {patient}]")
-            print(print_exc(e))
-            with open(f"filtered_{'_'.join(required_signals)}.txt", "w") as f:
-                json.dump(usable_records, f, indent=2)
+
