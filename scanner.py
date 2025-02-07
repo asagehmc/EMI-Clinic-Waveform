@@ -8,6 +8,8 @@ import os
 
 PHYSIONET = "https://physionet.org/files/"
 MIMIC = "mimic3wdb-matched/1.0/"
+# Manual Download: https://physionet.org/files/mimic3wdb-matched/1.0/
+
 
 sample_threshold = 1024
 required_signals = ["ABP", "I"]

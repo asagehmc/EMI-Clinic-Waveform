@@ -43,7 +43,7 @@ def convert_ecg_wfdb_to_edf(dat_file_path, output_edf_path, ecg_channel_name='II
     ch_dict = {
         'label': 'ECG',
         'dimension': 'mV',
-        'sample_rate': record.fs,
+        'sample_frequency': record.fs,
         'physical_max': np.max(ecg_data),
         'physical_min': np.min(ecg_data),
         'digital_max': 32767,
@@ -115,7 +115,7 @@ def print_record_info(dat_file_path):
 if __name__ == "__main__":
 
     # Example for converting only ECG channel
-    num = 4
+    num = 5
     path = f"data/3544749_000{num}"
     out_path = f"data/000{num}.edf"
     print_record_info(path)

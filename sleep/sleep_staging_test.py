@@ -43,6 +43,5 @@ def graph_sleep_stages(path):
 
 
 if __name__ == "__main__":
-    # path = "data/p000020/out/0005.edf"
-    path = "data/test_sleep.edf"
+    path = "data/0005.edf"
     graph_sleep_stages(path)
