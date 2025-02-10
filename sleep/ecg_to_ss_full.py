@@ -26,7 +26,15 @@ required_signals = ["ABP", "II"]
 
 
 def lerp_ecg(ecg_data, ecg_nans):
-    # process ecg data (lerp out nans)
+    """Compresses continuous ABP data to larger intervals
+
+    Args:
+        ecg_data: bp data from the record
+        ecg_nans: indexes in ecg_data which are nan
+
+    Returns:
+        A processed ecg record with nan values averaged out
+    """
     empty_indexes = np.array(np.where(ecg_nans))[0]
     i = 0
     while i < len(empty_indexes):
@@ -43,6 +51,15 @@ def lerp_ecg(ecg_data, ecg_nans):
 
 
 def process_bp_data(bp, fs):
+    """Compresses continuous ABP data to larger intervals
+
+        Args:
+            bp: bp data from the record
+            fs: the frequency of the ecg data
+
+        Returns:
+            A numpy array of length n with the average bp across each time interval
+        """
     window_size = fs * time_step
     i = 0
     out = np.array([])
@@ -55,6 +72,16 @@ def process_bp_data(bp, fs):
 
 
 def calculate_sleep_stages(ecg, fs):
+    """Runs sleep staging
+
+    Args:
+        ecg: ecg data from the record
+        fs: the frequency of the ecg data
+
+    Returns:
+        A numpy array of shape nx4 with the probabilities of each sleep stage for each interval
+    """
+
     # detect heartbeats
     beats = sleepecg.detect_heartbeats(ecg, fs)
     sleepecg.plot_ecg(ecg, fs, beats=beats)
@@ -62,40 +89,56 @@ def calculate_sleep_stages(ecg, fs):
     # load SleepECG classifier (requires tensorflow)
     clf = sleepecg.load_classifier("wrn-gru-mesa-weighted", "SleepECG")
 
-    # predict sleep stages
     record = sleepecg.SleepRecord(
         sleep_stage_duration=30,
         heartbeat_times=beats / fs,
     )
 
+    # predict sleep stages
     stages = sleepecg.stage(clf, record, return_mode="prob")
     return stages
 
 
-# converts a record into sleep cycles / abp per time_step
+#
 def convert_record(patient, record, error_path):
+    """Converts a record into sleep cycles / abp per time_step
+
+    Args:
+        patient: The ID of the patient as a path (e.g. "p00/p000079")
+        record: the Record object to convert
+        error_path: filepath to error file
+
+    Returns:
+        A dictionary with keys "sleep_stages" and "blood_pressure" and the corresponding data
+    """
     try:
         # read the record from physionet
         record = wfdb.rdrecord(record, pn_dir=f"{MIMIC}{patient}")
 
+        # read ecg data
         ecg_index = record.sig_name.index(ecg_channel_name)
         ecg_data = record.p_signal[:, ecg_index].astype(np.float64)
 
+        # read abp data
         abp_index = record.sig_name.index(abp_channel_name)
         abp_data = record.p_signal[:, abp_index].astype(np.float64)
 
-        # get an array of indices that are NaN
+        # get an array of indices that are NaN in ECG data
         ecg_nans = np.isnan(ecg_data)
+        # skip segment if there are too many nans
         if len(ecg_data) - sum(ecg_nans) < NAN_THRESHOLD * len(ecg_data):
             print(f"skipped segment {patient} {record} due to high nan-rate")
             return
+        # preprocess ECG data
         ecg_data = lerp_ecg(ecg_data, ecg_nans)
+        # run sleep staging
         sleep_stages = calculate_sleep_stages(ecg_data, record.fs)
-        bp_30s = process_bp_data(abp_data, record.fs)
+        # calculate abp segments
+        bp_intervals = process_bp_data(abp_data, record.fs)
 
         return {
             "sleep_stages": sleep_stages.tolist(),
-            "blood_pressure": bp_30s.tolist()
+            "blood_pressure": bp_intervals.tolist()
                 }
 
     except Exception:
@@ -104,6 +147,17 @@ def convert_record(patient, record, error_path):
 
 
 def write_to_file(patient, segment_name, converted, segment_datetime):
+    """Write patient data to file.
+
+    Args:
+        patient: The ID of the patient as a path (e.g. "p00/p000079")
+        segment_name: The name of the segment
+        converted: The output ss/bp data
+        segment_datetime: The datetime for the segment that was processed
+
+    Returns:
+        None
+    """
     os.makedirs(f"data/patients/{patient}", exist_ok=True)
     with open(f"data/patients/{patient}/{segment_name}.json", "w") as f:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -113,7 +167,20 @@ def write_to_file(patient, segment_name, converted, segment_datetime):
         print(f"saved record {patient} {segment_name}")
 
 
+#
+#
 def scan_mimic(error_path):
+    """
+    Iterates through the patients in mimic, finds records which are valid for ss processing
+    and converts them, writing the result to a directory in data/patients
+
+    Args:
+        error_path: filename to write error messages to
+
+    Returns:
+        None
+    """
+
     # get the list of patients from the db
     record_list = wfdb.get_record_list(MIMIC)
 
@@ -154,14 +221,26 @@ def scan_mimic(error_path):
             raise
 
 
+#
 def error_write(filename, message):
+    """Writes a line to the error file
+
+    Args:
+        filename: filename to write error messages to
+        message: error msg
+
+    Returns:
+        None
+    """
     with open(f"data/{filename}", "a") as f:
         f.write(message + "\n")
         print(message)
 
 
 if __name__ == "__main__":
+    # write a timestamp of the run to the error file
     error_file = "errors.txt"
     error_write(error_file, f"---------- {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # run process
     scan_mimic(error_file)
 
