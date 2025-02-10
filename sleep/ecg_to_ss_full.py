@@ -121,7 +121,7 @@ def scan_mimic(error_path):
     record_list = wfdb.get_record_list(MIMIC)
 
     # for showing percentages while running
-    for patient in record_list[6:]:
+    for patient in record_list:
         try:
             # get the list of records for an individual patient
             patient_records = wfdb.get_record_list(f"{MIMIC}{patient}")
