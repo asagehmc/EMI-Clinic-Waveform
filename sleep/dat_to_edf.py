@@ -116,8 +116,8 @@ if __name__ == "__main__":
 
     # Example for converting only ECG channel
     num = 5
-    path = f"data/3544749_000{num}"
-    out_path = f"data/000{num}.edf"
+    path = f"data/test/3544749_000{num}"
+    out_path = f"data/test/000{num}.edf"
     print_record_info(path)
     # another_conversion_try(path)
     convert_ecg_wfdb_to_edf(path, out_path, ecg_channel_name='II')

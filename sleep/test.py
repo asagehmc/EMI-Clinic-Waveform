@@ -119,8 +119,8 @@ def convert_ecg_wfdb_to_edf(dat_file_path, output_edf_path, ecg_channel_input_na
 
 if __name__ == "__main__":
     num = 5
-    path = f"data/3544749_000{num}"
-    out_path = f"data/000{num}.edf"
+    path = f"data/test/3544749_000{num}"
+    out_path = f"data/test/000{num}.edf"
 
     # Print information about the record
     regenerate = True
