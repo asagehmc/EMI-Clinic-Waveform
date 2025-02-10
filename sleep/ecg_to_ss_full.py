@@ -72,6 +72,7 @@ def calculate_sleep_stages(ecg, fs):
     )
 
     stages = sleepecg.stage(clf, record, return_mode="prob")
+    stages = np.round(stages, decimals=2)
     return stages
 
 
@@ -103,7 +104,6 @@ def convert_record(patient, record, error_path):
 
     except Exception:
         error_write(error_path, f"Problem converting record [Patient: {patient} Record: {record}]")
-        raise
 
 
 def write_to_file(patient, segment_name, converted, segment_datetime):
@@ -150,11 +150,9 @@ def scan_mimic(error_path):
                                 print(f"skipped segment {patient} {segment.record_name} due to missing signals")
                     except Exception as e:
                         error_write(error_path, f"Problem parsing patient record [patient: {patient}, record: {segment.record_name if segment else '--'}]")
-                        raise
 
         except Exception as e:
             error_write(error_path, f"Problem with patient [Patient: {patient}]")
-            raise
 
 
 def error_write(filename, message):
