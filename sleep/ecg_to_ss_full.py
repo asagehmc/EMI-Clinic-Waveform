@@ -1,12 +1,9 @@
 import json
 from datetime import datetime
-from traceback import print_exc
 
 import numpy as np
 import sleepecg
 import wfdb
-import requests
-import glob
 import os
 
 PHYSIONET = "https://physionet.org/files/"
@@ -72,7 +69,6 @@ def calculate_sleep_stages(ecg, fs):
     )
 
     stages = sleepecg.stage(clf, record, return_mode="prob")
-    stages = np.round(stages, decimals=2)
     return stages
 
 
@@ -104,6 +100,7 @@ def convert_record(patient, record, error_path):
 
     except Exception:
         error_write(error_path, f"Problem converting record [Patient: {patient} Record: {record}]")
+        raise
 
 
 def write_to_file(patient, segment_name, converted, segment_datetime):
@@ -111,7 +108,7 @@ def write_to_file(patient, segment_name, converted, segment_datetime):
     with open(f"data/patients/{patient}/{segment_name}.json", "w") as f:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         converted["last_update"] = now
-        converted["date"] = segment_datetime
+        converted["date"] = str(segment_datetime)
         json.dump(converted, f, indent=2)
         print(f"saved record {patient} {segment_name}")
 
@@ -137,7 +134,7 @@ def scan_mimic(error_path):
                             # we can skip all segment queries if the layout doesn't even have the right signals
                             has_required_signals = not (False in [(x in header.sig_name) for x in required_signals])
                             if not has_required_signals:
-                                print(f"skipped patient {patient} due to missing signals")
+                                print(f"skipped patient record {patient} {header.record_name} due to missing signals")
                                 break
                         elif segment is not None \
                                 and segment.sig_len > required_segment_len * segment.fs \
@@ -150,9 +147,11 @@ def scan_mimic(error_path):
                                 print(f"skipped segment {patient} {segment.record_name} due to missing signals")
                     except Exception as e:
                         error_write(error_path, f"Problem parsing patient record [patient: {patient}, record: {segment.record_name if segment else '--'}]")
+                        raise
 
         except Exception as e:
             error_write(error_path, f"Problem with patient [Patient: {patient}]")
+            raise
 
 
 def error_write(filename, message):

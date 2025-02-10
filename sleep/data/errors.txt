@@ -1,0 +1,19 @@
+---------- 2025-02-10 09:35:25
+---------- 2025-02-10 09:36:34
+---------- 2025-02-10 09:38:07
+---------- 2025-02-10 09:42:05
+Problem converting record [Patient: p00/p000020/ Record: <wfdb.io.record.Record object at 0x0000012955A5D220>]
+Problem parsing patient record [patient: p00/p000020/, record: 3544749_0005]
+---------- 2025-02-10 09:46:03
+Problem converting record [Patient: p00/p000020/ Record: <wfdb.io.record.Record object at 0x000001A67AEDD3D0>]
+Problem parsing patient record [patient: p00/p000020/, record: 3544749_0005]
+---------- 2025-02-10 09:48:13
+Problem converting record [Patient: p00/p000020/ Record: <wfdb.io.record.Record object at 0x000002796943B0D0>]
+Problem parsing patient record [patient: p00/p000020/, record: 3544749_0005]
+Problem with patient [Patient: p00/p000020/]
+---------- 2025-02-10 09:50:59
+Problem parsing patient record [patient: p00/p000020/, record: 3544749_0005]
+Problem with patient [Patient: p00/p000020/]
+---------- 2025-02-10 09:52:34
+---------- 2025-02-10 09:57:06
+---------- 2025-02-10 09:58:20
