@@ -100,7 +100,7 @@ def convert_record(patient, record, error_path):
 
     except Exception:
         error_write(error_path, f"Problem converting record [Patient: {patient} Record: {record}]")
-        raise
+        # raise
 
 
 def write_to_file(patient, segment_name, converted, segment_datetime):
@@ -110,7 +110,7 @@ def write_to_file(patient, segment_name, converted, segment_datetime):
         converted["last_update"] = now
         converted["date"] = str(segment_datetime)
         json.dump(converted, f, indent=2)
-        print(f"saved record {patient} {segment_name}")
+        print(f"saved record {patient}{segment_name}")
 
 
 def scan_mimic(error_path):
@@ -118,7 +118,7 @@ def scan_mimic(error_path):
     record_list = wfdb.get_record_list(MIMIC)
 
     # for showing percentages while running
-    for patient in record_list:
+    for patient in record_list[130:]:
         try:
             # get the list of records for an individual patient
             patient_records = wfdb.get_record_list(f"{MIMIC}{patient}")
@@ -142,16 +142,17 @@ def scan_mimic(error_path):
                             has_required_signals = not (False in [(x in segment.sig_name) for x in required_signals])
                             if has_required_signals:
                                 converted = convert_record(patient, segment.record_name, error_path)
-                                write_to_file(patient, segment.record_name, converted, header.base_datetime)
+                                if converted is not None:
+                                    write_to_file(patient, segment.record_name, converted, header.base_datetime)
                             else:
                                 print(f"skipped segment {patient} {segment.record_name} due to missing signals")
                     except Exception as e:
                         error_write(error_path, f"Problem parsing patient record [patient: {patient}, record: {segment.record_name if segment else '--'}]")
-                        raise
+                        # raise
 
         except Exception as e:
             error_write(error_path, f"Problem with patient [Patient: {patient}]")
-            raise
+            # raise
 
 
 def error_write(filename, message):
