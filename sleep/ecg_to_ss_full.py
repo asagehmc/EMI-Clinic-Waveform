@@ -11,7 +11,7 @@ MIMIC = "mimic3wdb-matched/1.0/"
 # Manual Download: https://physionet.org/files/mimic3wdb-matched/1.0/
 
 # required signal length in seconds
-required_segment_len = 4 * 60 * 60 # (4 hours)
+required_segment_len = 4 * 60 * 60  # (4 hours)
 # minimum frequency for a segment to be acceptable
 min_frequency = 125
 # the proportion of nans in ecg data below which we skip the record
@@ -23,6 +23,9 @@ time_step = 30
 ecg_channel_name = "II"
 abp_channel_name = "ABP"
 required_signals = ["ABP", "II"]
+
+# load SleepECG classifier (requires tensorflow)
+clf = sleepecg.load_classifier("wrn-gru-mesa-weighted", "SleepECG")
 
 
 def lerp_ecg(ecg_data, ecg_nans):
@@ -86,9 +89,6 @@ def calculate_sleep_stages(ecg, fs):
     beats = sleepecg.detect_heartbeats(ecg, fs)
     sleepecg.plot_ecg(ecg, fs, beats=beats)
 
-    # load SleepECG classifier (requires tensorflow)
-    clf = sleepecg.load_classifier("wrn-gru-mesa-weighted", "SleepECG")
-
     record = sleepecg.SleepRecord(
         sleep_stage_duration=30,
         heartbeat_times=beats / fs,
@@ -139,7 +139,7 @@ def convert_record(patient, record, error_path):
         return {
             "sleep_stages": sleep_stages.tolist(),
             "blood_pressure": bp_intervals.tolist()
-                }
+        }
 
     except Exception:
         error_write(error_path, f"Problem converting record [Patient: {patient} Record: {record}]")
@@ -184,8 +184,13 @@ def scan_mimic(error_path):
     # get the list of patients from the db
     record_list = wfdb.get_record_list(MIMIC)
 
+    starting_point = "p001978"
+    shortened_record_list = record_list[
+                            record_list.index(f"{starting_point[0:3]}/{starting_point}/") if starting_point is not None \
+                            else record_list:]
+
     # for showing percentages while running
-    for patient in record_list[130:]:
+    for patient in shortened_record_list:
         try:
             # get the list of records for an individual patient
             patient_records = wfdb.get_record_list(f"{MIMIC}{patient}")
@@ -214,7 +219,8 @@ def scan_mimic(error_path):
                             else:
                                 print(f"skipped segment {patient} {segment.record_name} due to missing signals")
                     except Exception as e:
-                        error_write(error_path, f"Problem parsing patient record [patient: {patient}, record: {segment.record_name if segment else '--'}]")
+                        error_write(error_path,
+                                    f"Problem parsing patient record [patient: {patient}, record: {segment.record_name if segment else '--'}]")
                         # raise
 
         except Exception as e:
@@ -244,4 +250,3 @@ if __name__ == "__main__":
     error_write(error_file, f"---------- {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     # run process
     scan_mimic(error_file)
-
