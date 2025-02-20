@@ -44,33 +44,37 @@ if __name__ == "__main__":
                             if not has_required_signals:
                                 break
                             print("HAS REQUIRED SIGNALS!")
-                        elif segment is not None and segment.sig_len > sample_threshold:
+                        elif segment is not None:
                             # get only segments that aren't generated from the layout header, and are long enough
-                            has_required_signals = not (False in [(x in header.sig_name) for x in required_signals])
-                            # make filepath and get file size in bytes
-                            data_url = f"{PHYSIONET}{MIMIC}{patient}{segment.record_name}.dat"
-                            data_response = requests.head(data_url)
-                            # query file size
-                            size = int(data_response.headers.get('content-length', 0)) if data_response.ok else -1
-                            num_queries_made += 1
+                            has_required_signals = not (False in [(x in segment.sig_name) for x in required_signals])
+                            if has_required_signals and segment.sig_len > sample_threshold:
 
-                            # add to usable_records the current subsection of data
-                            if patient not in usable_records:
-                                usable_records[patient] = []
-                            usable_records[patient].append({
-                                "id": segment.record_name,
-                                "size": size,
-                            })
+                                # make filepath and get file size in bytes
+                                data_url = f"{PHYSIONET}{MIMIC}{patient}{segment.record_name}.dat"
+                                data_response = requests.head(data_url)
+                                # query file size
+                                size = int(data_response.headers.get('content-length', 0)) if data_response.ok else -1
+
+                                # add to usable_records the current subsection of data
+                                if patient not in usable_records:
+                                    usable_records[patient] = []
+                                usable_records[patient].append({
+                                    "id": segment.record_name,
+                                    "size": size,
+                                })
+                                print("FOUND:", segment.record_name)
+                                with open(f"filtered_{'_'.join(required_signals)}.txt", "w") as f:
+                                    json.dump(usable_records, f, indent=2)
+                            elif has_required_signals:
+                                print(f"record {segment.record_name} has the required signals but is too short")
 
                 except Exception as e:
                     print(f"Problem with [patient: {patient}, in subsegment]")
                     print(print_exc(e))
 
             # reporting
-            num_records_handled += 1
-            print(num_records_handled)
-            with open(f"filtered_{'_'.join(required_signals)}.txt", "w") as f:
-                json.dump(usable_records, f, indent=2)
+            print(patient)
+
 
         except Exception as e:
             print(f"Problem with [patient: {patient}]")
