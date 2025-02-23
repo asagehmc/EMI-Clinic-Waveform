@@ -12,7 +12,7 @@ MIMIC = "mimic3wdb-matched/1.0/"
 
 
 sample_threshold = 1024
-required_signals = ["ABP", "I"]
+required_signals = ["ABP", "HR"]
 
 if __name__ == "__main__":
     # a dictionary of the valid (large enough, have the right data lines) segments of data, and their sizes
@@ -38,6 +38,7 @@ if __name__ == "__main__":
 
                 try:
                     for segment in header.segments:
+                        print(segment.sig_name)
                         if segment is not None and "layout" in segment.record_name:
                             # we can skip all segment queries if the layout doesn't even have the right signals
                             has_required_signals = not (False in [(x in header.sig_name) for x in required_signals])
@@ -74,7 +75,6 @@ if __name__ == "__main__":
 
             # reporting
             print(patient)
-
 
         except Exception as e:
             print(f"Problem with [patient: {patient}]")
