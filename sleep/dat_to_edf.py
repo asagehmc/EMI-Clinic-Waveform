@@ -115,9 +115,13 @@ def print_record_info(dat_file_path):
 if __name__ == "__main__":
 
     # Example for converting only ECG channel
-    num = 5
-    path = f"data/test/3544749_000{num}"
+    #num = 5
+    #path = f"data/test/3544749_000{num}"
+    #out_path = f"data/test/000{num}.edf"
+    num = 14
+    path = f"data/test/3278512_00{num}"
     out_path = f"data/test/000{num}.edf"
+
     print_record_info(path)
     # another_conversion_try(path)
-    convert_ecg_wfdb_to_edf(path, out_path, ecg_channel_name='II')
+    convert_ecg_wfdb_to_edf(path, out_path, ecg_channel_name='I')

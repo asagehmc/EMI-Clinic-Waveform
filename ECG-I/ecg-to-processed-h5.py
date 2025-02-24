@@ -20,7 +20,7 @@ def find_and_remove_noise(ecg_signal, fs, min_freq, min_noise_ratio, filter_bw, 
     while n_removed_freqs < max_removed_freqs:
         # get a list of frequencies to filter out for noise
         to_remove_freqs = find_noise(ecg_signal, fs, min_freq, min_noise_ratio, num_snapshots=10)
-
+        print("REMOVING FREQ:", to_remove_freqs)
         # take out all of the to-remove-frequencies that have already been filtered
         mask = ~np.isin(to_remove_freqs, removed_freqs)
         to_remove_freqs = to_remove_freqs[mask]
@@ -48,8 +48,8 @@ def find_noise(ecg_signal, fs, min_freq, min_noise_ratio, num_snapshots=10):
         start = i * window_spacing
         window_len = fs * 20
         ecg_segment = ecg_signal[start:start + window_len]
-        peaks = signal.find_peaks(ecg_segment, distance=2 * fs)[0]
-        troughs = signal.find_peaks(-ecg_segment, distance=2 * fs)[0]
+        peaks = ecg_segment[signal.find_peaks(ecg_segment, distance=2 * fs)[0]]
+        troughs = ecg_segment[signal.find_peaks(-ecg_segment, distance=2 * fs)[0]]
         median_amplitudes.append(np.median(peaks) + np.median(troughs))
 
     median_amplitude = np.median(median_amplitudes)
