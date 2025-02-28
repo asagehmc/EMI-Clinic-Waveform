@@ -166,7 +166,7 @@ def process_segment(patient, segment, outfilename):
         # Create required datasets
         f.create_dataset('ecgs', data=chunked_signal)
         f.create_dataset('demographics', data=demographics)
-        f.create_dataset('midnight_offset', data=float(-4))
+        f.create_dataset('midnight_offset', data=[-4])
 
 #  python train.py "../../local_data/out/0014.h5"
 
