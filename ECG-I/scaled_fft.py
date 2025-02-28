@@ -13,8 +13,6 @@ def scaled_fft(ecg_signal, fs, freq_div, min_value=0.01):
     # how many frequencies we "bin" together in the moving mean of frequency magnitudes
     frequency_bins = max(next_odd(6 / freq_div + 1), 5)
     ecg_signal = ecg_signal[:round(fs/freq_div)]
-    plt.plot(ecg_signal)
-    plt.show()
     fft_len = len(ecg_signal)
     # take the magnitudes of the fft output
     y = fft.fft(ecg_signal, fft_len)

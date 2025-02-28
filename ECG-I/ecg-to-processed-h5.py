@@ -1,10 +1,12 @@
 import math
 
+import h5py
 import numpy as np
 from scaled_fft import scaled_fft
 import wfdb
 from matplotlib import pyplot as plt
 from scipy import signal
+from signal_analysis import get_scale_for_peaks
 
 MIMIC = "mimic3wdb-matched/1.0/"
 ecg_channel_name = "I"
@@ -20,7 +22,7 @@ def find_and_remove_noise(ecg_signal, fs, min_freq, min_noise_ratio, filter_bw, 
     while n_removed_freqs < max_removed_freqs:
         # get a list of frequencies to filter out for noise
         to_remove_freqs = find_noise(ecg_signal, fs, min_freq, min_noise_ratio, num_snapshots=10)
-        print("REMOVING FREQ:", to_remove_freqs)
+        print("Removing frequency:", to_remove_freqs)
         # take out all of the to-remove-frequencies that have already been filtered
         mask = ~np.isin(to_remove_freqs, removed_freqs)
         to_remove_freqs = to_remove_freqs[mask]
@@ -90,7 +92,7 @@ def find_noise(ecg_signal, fs, min_freq, min_noise_ratio, num_snapshots=10):
 
 def remove_noise(ecg_signal, freqs_to_filter, sample_frequency, filter_bandwidth):
     for filt_freq in freqs_to_filter:
-        print(filt_freq)
+        print("Filtering frequency",  filt_freq)
         b, a = signal.iirnotch(filt_freq / (sample_frequency / 2),
                                filter_bandwidth / (sample_frequency / 2),
                                fs=sample_frequency)
@@ -99,7 +101,7 @@ def remove_noise(ecg_signal, freqs_to_filter, sample_frequency, filter_bandwidth
     return ecg_signal
 
 
-def process_segment(patient, segment):
+def process_segment(patient, segment, outfilename):
 
     # record = wfdb.rdrecord(segment, pn_dir=f"{MIMIC}{patient}")
     record = wfdb.rdrecord("local_data/3278512_0014")
@@ -129,36 +131,47 @@ def process_segment(patient, segment):
     ecg_data = find_and_remove_noise(ecg_data, frequency, min_freq, min_noise_ratio, filter_bandwidth, max_removed_freqs)
 
     # resample to 256hz
-    new_sample_rate = 256
+    print("Resampling")
+    new_fs = 256
     original_len = len(ecg_data)
-    new_len = int(original_len * (new_sample_rate / record.fs))
+    new_len = int(original_len * (new_fs / record.fs))
     resampled_signal = signal.resample(ecg_data, new_len)
 
     # scale data:
     #       shift to median 0
+    print("Shifting!")
     median = np.median(resampled_signal)
     shifted_signal = resampled_signal - median
-    #       rescale so 90% of peaks are within +-0.5 TODO: actually figure out how to do this
-    ecg_peak_scalar = 0.05
-    high_ecg_peak = np.percentile(shifted_signal, 100 - ecg_peak_scalar)
-    low_ecg_peak = np.percentile(shifted_signal, ecg_peak_scalar)
+    # rescale so 90% of peaks are within +-0.5
 
-    resize_amt = 1 / (high_ecg_peak - low_ecg_peak)
+    print("resizing!")
+    resize_amt = get_scale_for_peaks(shifted_signal, new_fs, segments=100, segment_length=30, pct=0.9)
     resized_signal = shifted_signal * resize_amt
 
     clamped_signal = np.clip(resized_signal, -1, 1)
+    # for i in range(0, 100):
+    #     start = int(len(clamped_signal)/100 * i)
+    #     plt.plot(clamped_signal[start:start+2000])
+    #     plt.show()
 
     # chunk data into 30s intervals
     chunk_size = 256 * 30  # 30 second windows
     chunked_signal = clamped_signal[:new_len - (new_len % chunk_size)]
     chunked_signal = chunked_signal.reshape(-1, chunk_size)
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(chunked_signal[34][:1600])  # You can also use plt.hist(chunk) for a histogram plot
-    plt.show()
+    demographics = np.array([[1], [50]], dtype=float)
+
+    # Create the H5 file
+    with h5py.File(outfilename, 'w') as f:
+        # Create required datasets
+        f.create_dataset('ecgs', data=chunked_signal)
+        f.create_dataset('demographics', data=demographics)
+        f.create_dataset('midnight_offset', data=float(-4))
+
+#  python train.py "../../local_data/out/0014.h5"
 
 
 if __name__ == "__main__":
     segment = "3278512_0014"
     patient = "p01/p018753/"
-    process_segment(patient, segment)
+    process_segment(patient, segment, "local_data/out/0014.h5")
