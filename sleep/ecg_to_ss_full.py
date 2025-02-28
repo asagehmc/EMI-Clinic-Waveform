@@ -184,7 +184,7 @@ def scan_mimic(error_path):
     # get the list of patients from the db
     record_list = wfdb.get_record_list(MIMIC)
 
-    starting_point = "p001978"
+    starting_point = "p002639"
     shortened_record_list = record_list[
                             record_list.index(f"{starting_point[0:3]}/{starting_point}/") if starting_point is not None \
                             else record_list:]
