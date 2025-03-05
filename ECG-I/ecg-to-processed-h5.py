@@ -12,10 +12,6 @@ MIMIC = "mimic3wdb-matched/1.0/"
 ecg_channel_name = "I"
 
 
-def high_pass(freq=0.5):
-    pass
-
-
 def find_and_remove_noise(ecg_signal, fs, min_freq, min_noise_ratio, filter_bw, max_removed_freqs):
     n_removed_freqs = 0
     removed_freqs = []
@@ -102,16 +98,17 @@ def remove_noise(ecg_signal, freqs_to_filter, sample_frequency, filter_bandwidth
 
 
 def process_segment(patient, segment, outfilename):
-
-    # record = wfdb.rdrecord(segment, pn_dir=f"{MIMIC}{patient}")
-    record = wfdb.rdrecord("local_data/3278512_0014")
-
+    print("Reading record")
+    record = wfdb.rdrecord(segment, pn_dir=f"{MIMIC}{patient}")
+    # record = wfdb.rdrecord("local_data/3278512_0014")
+    print("Done reading record")
     # read ecg data
     ecg_index = record.sig_name.index(ecg_channel_name)
     ecg_data = record.p_signal[:, ecg_index].astype(np.float64)
 
     ecg_data = np.nan_to_num(ecg_data)
 
+    print("High pass filtering")
     # high pass filter at frequency 0.5
     frequency = record.fs
     order = 4
@@ -149,10 +146,10 @@ def process_segment(patient, segment, outfilename):
     resized_signal = shifted_signal * resize_amt
 
     clamped_signal = np.clip(resized_signal, -1, 1)
-    # for i in range(0, 100):
-    #     start = int(len(clamped_signal)/100 * i)
-    #     plt.plot(clamped_signal[start:start+2000])
-    #     plt.show()
+    for i in range(0, 100):
+        start = int(len(clamped_signal)/100 * i)
+        plt.plot(clamped_signal[start:start+2000])
+        plt.show()
 
     # chunk data into 30s intervals
     chunk_size = 256 * 30  # 30 second windows
@@ -166,12 +163,27 @@ def process_segment(patient, segment, outfilename):
         # Create required datasets
         f.create_dataset('ecgs', data=chunked_signal)
         f.create_dataset('demographics', data=demographics)
-        f.create_dataset('midnight_offset', data=[-4])
+        f.create_dataset('midnight_offset', data=[-3.25])
 
-#  python train.py "../../local_data/out/0014.h5"
+#  python train.py "../../../local_data/out/0014.h5"
 
 
 if __name__ == "__main__":
+    segment = "3054941_0029"
+    patient = "p00/p000801/"
+    outpath = f"local_data/out/{patient.split('/')[1]}_{segment}.h5"
+    process_segment(patient, segment, outpath)
+
+
+
+
+""" previously used segments:
+
     segment = "3278512_0014"
     patient = "p01/p018753/"
-    process_segment(patient, segment, "local_data/out/0014.h5")
+
+"""
+
+
+
+

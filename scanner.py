@@ -11,8 +11,8 @@ MIMIC = "mimic3wdb-matched/1.0/"
 # Manual Download: https://physionet.org/files/mimic3wdb-matched/1.0/
 
 
-sample_threshold = 1024
-required_signals = ["ABP", "HR"]
+min_time = 8
+required_signals = ["ABP", "I"]
 
 if __name__ == "__main__":
     # a dictionary of the valid (large enough, have the right data lines) segments of data, and their sizes
@@ -38,7 +38,6 @@ if __name__ == "__main__":
 
                 try:
                     for segment in header.segments:
-                        print(segment.sig_name)
                         if segment is not None and "layout" in segment.record_name:
                             # we can skip all segment queries if the layout doesn't even have the right signals
                             has_required_signals = not (False in [(x in header.sig_name) for x in required_signals])
@@ -48,13 +47,13 @@ if __name__ == "__main__":
                         elif segment is not None:
                             # get only segments that aren't generated from the layout header, and are long enough
                             has_required_signals = not (False in [(x in segment.sig_name) for x in required_signals])
-                            if has_required_signals and segment.sig_len > sample_threshold:
+                            if has_required_signals and segment.sig_len > min_time * 60 * 60 * segment.fs:
 
                                 # make filepath and get file size in bytes
                                 data_url = f"{PHYSIONET}{MIMIC}{patient}{segment.record_name}.dat"
                                 data_response = requests.head(data_url)
                                 # query file size
-                                size = int(data_response.headers.get('content-length', 0)) if data_response.ok else -1
+                                size = segment.sig_len // segment.fs
 
                                 # add to usable_records the current subsection of data
                                 if patient not in usable_records:
@@ -71,11 +70,11 @@ if __name__ == "__main__":
 
                 except Exception as e:
                     print(f"Problem with [patient: {patient}, in subsegment]")
-                    print(print_exc(e))
-
+                    # raise
             # reporting
             print(patient)
 
         except Exception as e:
             print(f"Problem with [patient: {patient}]")
+            # raise
 
