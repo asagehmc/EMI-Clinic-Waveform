@@ -12,7 +12,7 @@ MIMIC = "mimic3wdb-matched/1.0/"
 
 
 min_time = 8
-required_signals = ["ABP", "I"]
+required_signals = ["ABP", "II"]
 
 if __name__ == "__main__":
     # a dictionary of the valid (large enough, have the right data lines) segments of data, and their sizes
