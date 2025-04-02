@@ -48,25 +48,30 @@ def get_aligned_ss_and_bp():
     of sleep stage
     :return:
     """
-    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/patients"
+    data_paths = ["/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/patients","/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/patients_cvd"]
 
     data_dictionary = {}
-    for patient_subset in os.listdir(data_path):
-        subset_path = os.path.join(data_path, patient_subset)
-        for patient in os.listdir(subset_path):
-            patient_path = os.path.join(subset_path, patient)
-            patient_id = patient.split('p')[1]
-
-            i = 0
-            for ts in os.listdir(patient_path):
-                patient_data_path = os.path.join(patient_path, ts)
-
-                bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id)
-                if len(bp_ss) == 0:
+    for data_path in data_paths:
+        for patient_subset in os.listdir(data_path):
+            subset_path = os.path.join(data_path, patient_subset)
+            if not os.path.isdir(subset_path):
+                continue
+            for patient in os.listdir(subset_path):
+                patient_path = os.path.join(subset_path, patient)
+                if not os.path.isdir(patient_path):
                     continue
-                else:
-                    data_dictionary[(patient_id,i)] = bp_ss
-                    i += 1
+                patient_id = patient.split('p')[1]
+
+                i = 0
+                for ts in os.listdir(patient_path):
+                    patient_data_path = os.path.join(patient_path, ts)
+
+                    bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id)
+                    if len(bp_ss) == 0:
+                        continue
+                    else:
+                        data_dictionary[(patient_id,i)] = bp_ss
+                        i += 1
 
     return data_dictionary
 
@@ -228,6 +233,6 @@ def get_features(data_dictionary, summary, labels, demographics):
 if __name__ == '__main__':
     # getting features and labels for three different scenarios
     data_dictionary = get_aligned_ss_and_bp()
-    X_sum, y_sum = get_features(data_dictionary, True, True, False)
-    X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
-    X_ts, y_ts = get_features(data_dictionary, False, True, False)
+    # X_sum, y_sum = get_features(data_dictionary, True, True, False)
+    # X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
+    # X_ts, y_ts = get_features(data_dictionary, False, True, False)
