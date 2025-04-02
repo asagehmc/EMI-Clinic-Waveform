@@ -12,13 +12,13 @@ from sklearn.model_selection import train_test_split
 
 
 # SKETCHY DIRECTORY SOLUTION
-# os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
+os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
 from time2feat.t2f.extraction.extractor import feature_extraction
 from time2feat.t2f.utils.importance_old import feature_selection
 from time2feat.t2f.model.clustering import ClusterWrapper
-# os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
+os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
 
-from preprocessing import X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
+# from preprocessing import X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
 
 def cross_validate_summary_model(X, y, model_type):
     """
@@ -52,9 +52,6 @@ def score_summary_model(X, y, model_type, test_size=0.2):
     model.fit(X_train, y_train)
 
     return model.score(X_test, y_test)
-
-
-
 
 def train_t2f_model(X, transform_type, model_type, y=None, training_sampling=0):
     """

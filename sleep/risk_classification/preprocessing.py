@@ -3,9 +3,32 @@ import json
 import numpy as np
 from jinja2.filters import sync_do_sum
 from numpy.lib.stride_tricks import sliding_window_view
+from requests.compat import JSONDecodeError
 from scipy import stats
 
 from mimic_diagnoses import get_patient_labels, basic_info
+
+def get_aligned_ss_and_bp_one_instance(patient_data_path):
+    try:
+        patient_data = json.load(open(patient_data_path))
+    except JSONDecodeError:
+        # no data in file
+        return []
+
+    bp = np.array(patient_data['blood_pressure'])
+    ss = np.argmax(np.array(patient_data['sleep_stages']), axis=1)
+    try:
+        bp_ss = np.concatenate((bp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
+
+    # if they are off by one
+    except ValueError:
+        new_length = min(len(bp), len(ss))
+        bp = bp[:new_length]
+        ss = ss[:new_length]
+
+        bp_ss = np.concatenate((bp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
+
+    return bp_ss
 
 def get_aligned_ss_and_bp():
     """
@@ -20,26 +43,18 @@ def get_aligned_ss_and_bp():
         subset_path = os.path.join(data_path, patient_subset)
         for patient in os.listdir(subset_path):
             patient_path = os.path.join(subset_path, patient)
-            patient_data_path = os.path.join(patient_path,os.listdir(patient_path)[0])
 
-            patient_data = json.load(open(patient_data_path))
+            i = 0
+            for ts in os.listdir(patient_path):
+                patient_data_path = os.path.join(patient_path, ts)
 
-            bp = np.array(patient_data['blood_pressure'])
-            ss = np.argmax(np.array(patient_data['sleep_stages']),axis=1)
-            try:
-                bp_ss = np.concatenate((bp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
-
-            # if they are off by one
-            except ValueError:
-                new_length = min(len(bp), len(ss))
-                bp = bp[:new_length]
-                ss = ss[:new_length]
-
-                bp_ss = np.concatenate((bp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
-
-            patient_id = patient.split('p')[1]
-
-            data_dictionary[patient_id] = bp_ss
+                bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path)
+                if len(bp_ss) == 0:
+                    continue
+                else:
+                    patient_id = patient.split('p')[1]
+                    data_dictionary[(patient_id,i)] = bp_ss
+                    i += 1
 
     return data_dictionary
 
@@ -91,7 +106,7 @@ def get_summary_features(data_dictionary, labels, demographics):
     :param demographics: bool if getting demographics or not
     :return:
     """
-    patient_ids = list(data_dictionary.keys())
+    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
     patient_data = list(data_dictionary.values())
 
     X = np.array([get_summary_stats_for_instance(bp_ss,demographics,id) for id,bp_ss in zip(patient_ids,patient_data)])
@@ -162,7 +177,7 @@ def get_time_series_features(data_dictionary, labels):
     :param labels:
     :return:
     """
-    patient_ids = list(data_dictionary.keys())
+    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
     patient_data = list(data_dictionary.values())
 
     start_before_sleep = [get_start_before_sleep(bp_ss) for bp_ss in patient_data]
