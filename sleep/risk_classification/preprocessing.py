@@ -84,6 +84,12 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id=None):
     :param patient_id:
     :return:
     """
+    if len(bp_ss[0]) < 8*60*2:
+        if demographics:
+            return np.array([np.nan, np.nan, np.nan, np.nan,np.nan,np.nan,np.nan])
+        else:
+            return np.array([np.nan,np.nan,np.nan,np.nan,np.nan])
+
     bp = bp_ss[0]
     ss = bp_ss[1]
 
@@ -116,7 +122,7 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id=None):
         return np.array([bp_mean, bp_range, ss_1, ss_2, ss_3])
 
 
-def get_summary_features(data_dictionary, labels, demographics):
+def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics):
     """
     gets summary statistics features for all data
     :param data_dictionary: str patient_ids keys and 2d np array [[bp values],[ss values]] values
@@ -124,18 +130,15 @@ def get_summary_features(data_dictionary, labels, demographics):
     :param demographics: bool if getting demographics or not
     :return:
     """
-    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
-    patient_data = list(data_dictionary.values())
-
-    X = np.array([get_summary_stats_for_instance(bp_ss,demographics,id) for id,bp_ss in zip(patient_ids,patient_data)])
-    mostly_sleep_mask = X[:, 4] != 1
-    X = X[mostly_sleep_mask]
+    X = np.array([get_summary_stats_for_instance(bp_ss,demographics,id) for id,bp_ss in zip(patient_ids,start_before_sleep_arrays)])
+    # mostly_sleep_mask = X[:, 4] != 1
+    # X = X[mostly_sleep_mask]
     nan_mask = np.isnan(X).any(axis=1)
     X = X[~nan_mask]
 
     if labels:
         y = get_patient_labels(patient_ids)
-        y = y[mostly_sleep_mask]
+        # y = y[mostly_sleep_mask]
         y = y[~nan_mask]
         return X,y
     else:
@@ -188,34 +191,34 @@ def get_start_before_sleep(bp_ss):
     return after_sleep_bp_ss
 
 
-def get_time_series_features(data_dictionary, labels):
+def get_time_series_features(patient_ids, start_before_sleep_arrays, labels):
     """
     gets time series features for all data
     :param data_dictionary:
     :param labels:
     :return:
     """
-    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
-    patient_data = list(data_dictionary.values())
 
-    start_before_sleep = [get_start_before_sleep(bp_ss) for bp_ss in patient_data]
+    has_eight_hours = np.array([len(arr[0]) for arr in start_before_sleep_arrays]) > 8*60*2
 
-    # zero pad for an 8 hour block
-    X = pad_list_of_arrays(start_before_sleep, 8*60*2)
+    # zero pad / cut off for an 8 hour block
+    X = pad_list_of_arrays(start_before_sleep_arrays, 8*60*2)
+    X = X[has_eight_hours]
 
-    has_sleep = np.array([False if np.sum(arr == 0)==2*8*60*2 else True for arr in X])
-    X = X[has_sleep]
-    nan_mask = np.isnan(X_ts).any(axis=(1,2))
+    # has_sleep = np.array([False if np.sum(arr == 0)==2*8*60*2 else True for arr in X])
+    # X = X[has_sleep]
+
+    nan_mask = np.isnan(X).any(axis=(1,2))
     X = X[~nan_mask]
 
     if labels:
         y = get_patient_labels(patient_ids)
-        return X,y[has_sleep][~nan_mask]
+        return X,y[has_eight_hours][~nan_mask]
     else:
         return X
 
 
-def get_features(data_dictionary, summary, labels, demographics):
+def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics):
     """
     gets features for all data
     :param data_dictionary:
@@ -225,9 +228,9 @@ def get_features(data_dictionary, summary, labels, demographics):
     :return:
     """
     if summary:
-        features = get_summary_features(data_dictionary, labels, demographics)
+        features = get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics)
     else:
-        features = get_time_series_features(data_dictionary, labels)
+        features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels)
 
     if labels:
         return features[0], features[1]
@@ -237,6 +240,8 @@ def get_features(data_dictionary, summary, labels, demographics):
 if __name__ == '__main__':
     # getting features and labels for three different scenarios
     data_dictionary = get_aligned_ss_and_bp()
-    X_sum, y_sum = get_features(data_dictionary, True, True, False)
-    X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
-    X_ts, y_ts = get_features(data_dictionary, False, True, False)
+    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
+    start_before_sleep_arrays = [get_start_before_sleep(bp_ss) for bp_ss in list(data_dictionary.values())]
+    X_sum, y_sum = get_features(patient_ids, start_before_sleep_arrays, True, True, False)
+    X_sum_dem, y_sum_dem = get_features(patient_ids, start_before_sleep_arrays, True, True, True)
+    X_ts, y_ts = get_features(patient_ids, start_before_sleep_arrays, False, True, False)

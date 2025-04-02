@@ -107,7 +107,18 @@ def compare_unsupervised_clustering(X,y):
     unsupervised_accuracies = {}
     for model_type in ['Hierarchical','KMeans','Spectral']:
         for transform_type in ['std','minmax','robust']:
-            y_pred, model = train_t2f_model(X, transform_type, model_type, y, 0.2)
+            failed = True
+            i = 0
+            while failed == True:
+                try:
+                    y_pred, model = train_t2f_model(X, transform_type, model_type)
+                    failed = False
+                except Exception as e:
+                    print(e)
+                    if i > 10:
+                        print('failed 10 times')
+                        return
+                    i += 1
 
             unsupervised_accuracies[(model_type,transform_type)] = accuracies(y_pred, y)
 
@@ -119,7 +130,19 @@ def compare_averaged_unsupervised_clustering(X,y):
         for transform_type in ['std','minmax','robust']:
             accuracies_list = []
             for i in range(10):
-                y_pred, model = train_t2f_model(X, transform_type, model_type)
+                failed = True
+                i = 0
+                while failed == True:
+                    if i >10:
+                        print('failed 10 times')
+                        return
+                    try:
+                        y_pred, model = train_t2f_model(X, transform_type, model_type)
+                        failed = False
+                    except Exception as e:
+                        print(e)
+                        i += 1
+                        continue
 
                 accuracies_list += [accuracies(y_pred, y)]
 
