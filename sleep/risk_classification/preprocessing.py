@@ -6,20 +6,32 @@ from numpy.lib.stride_tricks import sliding_window_view
 from requests.compat import JSONDecodeError
 from scipy import stats
 
-from mimic_diagnoses import get_patient_labels, basic_info
+from mimic_diagnoses import get_patient_labels, basic_info, check_if_died_during_admission
 
-def get_aligned_ss_and_bp_one_instance(patient_data_path):
+def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id):
+    """
+    :param patient_data_path: str, path to patient data
+    :param patient_id: str, patient id
+    :return: bp_ss array for the given patient's data path if there is data and they didn't die during the stay
+             else return []
+    """
     try:
         patient_data = json.load(open(patient_data_path))
     except JSONDecodeError:
         # no data in file
         return []
 
+    # gets datetime str of the data measurement and cuts off decimal time
+    date = patient_data['date'][:19]
+    died = check_if_died_during_admission(int(patient_id), date)
+    if died:
+        return []
+
     bp = np.array(patient_data['blood_pressure'])
     ss = np.argmax(np.array(patient_data['sleep_stages']), axis=1)
+
     try:
         bp_ss = np.concatenate((bp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
-
     # if they are off by one
     except ValueError:
         new_length = min(len(bp), len(ss))
@@ -43,16 +55,16 @@ def get_aligned_ss_and_bp():
         subset_path = os.path.join(data_path, patient_subset)
         for patient in os.listdir(subset_path):
             patient_path = os.path.join(subset_path, patient)
+            patient_id = patient.split('p')[1]
 
             i = 0
             for ts in os.listdir(patient_path):
                 patient_data_path = os.path.join(patient_path, ts)
 
-                bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path)
+                bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id)
                 if len(bp_ss) == 0:
                     continue
                 else:
-                    patient_id = patient.split('p')[1]
                     data_dictionary[(patient_id,i)] = bp_ss
                     i += 1
 

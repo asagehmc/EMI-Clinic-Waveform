@@ -75,10 +75,12 @@ def train_t2f_model(X, transform_type, model_type, y=None, training_sampling=0):
 
     # Feature extraction
     df_feats = feature_extraction(X, batch_size=100, p=1)
+    print("extracted features")
 
     # Feature selection
     context = {'model_type': model_type, 'transform_type': transform_type}
     top_feats = feature_selection(df_feats, labels=labels, context=context)
+    print("selected features")
     df_feats = df_feats[top_feats]
 
     # Clustering

@@ -131,6 +131,26 @@ def basic_info(subject_id):
 
     return age, sex
 
+def check_if_died_during_admission(patient_id, datetime_str):
+    """
+    :param patient_id: int, patient id
+    :param datetime_str: str, datetime string from the data
+    :return: True if the patient died during the admission, False otherwise
+    """
+    format_string = "%Y-%m-%d %H:%M:%S"
+    data_time = datetime.datetime.strptime(datetime_str, format_string)
+
+    patient_admissions = admissions_leadii.loc[admissions_leadii['SUBJECT_ID'] == patient_id]
+
+    for i in range(len(patient_admissions)):
+        atime = datetime.datetime.strptime(patient_admissions.ADMITTIME.values[i], "%Y-%m-%d %H:%M:%S")
+        dtime = datetime.datetime.strptime(patient_admissions.DISCHTIME.values[i], "%Y-%m-%d %H:%M:%S")
+
+        if data_time <= dtime and data_time >= atime and patient_admissions.HOSPITAL_EXPIRE_FLAG.values[i] == 1:
+            return True
+
+    return False
+
 patients = pd.read_csv('mimic_data/PATIENTS.csv')
 admissions = pd.read_csv('mimic_data/ADMISSIONS.csv')
 diagnoses = pd.read_csv('mimic_data/DIAGNOSES_ICD.csv')
