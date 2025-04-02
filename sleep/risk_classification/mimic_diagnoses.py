@@ -131,11 +131,11 @@ def basic_info(subject_id):
 
     return age, sex
 
+if __name__ == '__main__':
+    patients = pd.read_csv('mimic_data/PATIENTS.csv')
+    admissions = pd.read_csv('mimic_data/ADMISSIONS.csv')
+    diagnoses = pd.read_csv('mimic_data/DIAGNOSES_ICD.csv')
 
-patients = pd.read_csv('mimic_data/PATIENTS.csv')
-admissions = pd.read_csv('mimic_data/ADMISSIONS.csv')
-diagnoses = pd.read_csv('mimic_data/DIAGNOSES_ICD.csv')
+    admissions_leadii, patients_leadii, diagnoses_leadii = get_leadii_dataframes(patients, admissions, diagnoses)
 
-admissions_leadii, patients_leadii, diagnoses_leadii = get_leadii_dataframes(patients, admissions, diagnoses)
-
-add_icd_10_code_to_diagnoses(diagnoses_leadii)
+    add_icd_10_code_to_diagnoses(diagnoses_leadii)

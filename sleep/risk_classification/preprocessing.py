@@ -54,8 +54,8 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id=None):
     bp = bp_ss[0]
     ss = bp_ss[1]
 
-    bp_mean = float(np.mean(bp))
-    bp_range = max(bp) - min(bp)
+    bp_mean = float(np.nanmean(bp))
+    bp_range = int(np.nanmax(bp) - np.nanmin(bp))
 
     uniques, counts = np.unique(ss, return_counts=True)
     percentages = dict(zip(uniques, counts / len(ss)))
@@ -74,7 +74,10 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id=None):
 
     if demographics:
         age, sex = basic_info(int(patient_id))
-        sex = 0 if sex == 'F' else 1
+        if 'F' in sex:
+            sex = 0
+        else:
+            sex = 1
         return np.array([bp_mean, bp_range, ss_1, ss_2, ss_3, age, sex])
     else:
         return np.array([bp_mean, bp_range, ss_1, ss_2, ss_3])
@@ -92,9 +95,15 @@ def get_summary_features(data_dictionary, labels, demographics):
     patient_data = list(data_dictionary.values())
 
     X = np.array([get_summary_stats_for_instance(bp_ss,demographics,id) for id,bp_ss in zip(patient_ids,patient_data)])
+    mostly_sleep_mask = X[:, 4] != 1
+    X = X[mostly_sleep_mask]
+    nan_mask = np.isnan(X).any(axis=1)
+    X = X[~nan_mask]
 
     if labels:
         y = get_patient_labels(patient_ids)
+        y = y[mostly_sleep_mask]
+        y = y[~nan_mask]
         return X,y
     else:
         return X
@@ -189,8 +198,9 @@ def get_features(data_dictionary, summary, labels, demographics):
     else:
         return features
 
-# getting features and labels for three different scenarios
-data_dictionary = get_aligned_ss_and_bp()
-X_sum, y_sum = get_features(data_dictionary, True, True, False)
-X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
-X_ts, y_ts = get_features(data_dictionary, False, True, False)
+if __name__ == '__main__':
+    # getting features and labels for three different scenarios
+    data_dictionary = get_aligned_ss_and_bp()
+    X_sum, y_sum = get_features(data_dictionary, True, True, False)
+    X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
+    X_ts, y_ts = get_features(data_dictionary, False, True, False)
