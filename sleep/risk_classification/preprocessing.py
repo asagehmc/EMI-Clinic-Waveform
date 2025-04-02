@@ -23,6 +23,7 @@ def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id):
 
     # gets datetime str of the data measurement and cuts off decimal time
     date = patient_data['date'][:19]
+    # checks if patient died during stay where data was taken
     died = check_if_died_during_admission(int(patient_id), date)
     if died:
         return []
@@ -203,12 +204,15 @@ def get_time_series_features(data_dictionary, labels):
     X = pad_list_of_arrays(start_before_sleep, 8*60*2)
 
     has_sleep = np.array([False if np.sum(arr == 0)==2*8*60*2 else True for arr in X])
+    X = X[has_sleep]
+    nan_mask = np.isnan(X_ts).any(axis=(1,2))
+    X = X[~nan_mask]
 
     if labels:
         y = get_patient_labels(patient_ids)
-        return X[has_sleep],y[has_sleep]
+        return X,y[has_sleep][~nan_mask]
     else:
-        return X[has_sleep]
+        return X
 
 
 def get_features(data_dictionary, summary, labels, demographics):
@@ -233,6 +237,6 @@ def get_features(data_dictionary, summary, labels, demographics):
 if __name__ == '__main__':
     # getting features and labels for three different scenarios
     data_dictionary = get_aligned_ss_and_bp()
-    # X_sum, y_sum = get_features(data_dictionary, True, True, False)
-    # X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
-    # X_ts, y_ts = get_features(data_dictionary, False, True, False)
+    X_sum, y_sum = get_features(data_dictionary, True, True, False)
+    X_sum_dem, y_sum_dem = get_features(data_dictionary, True, True, True)
+    X_ts, y_ts = get_features(data_dictionary, False, True, False)
