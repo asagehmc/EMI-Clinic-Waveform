@@ -264,3 +264,6 @@ Problem converting record [Patient: p00/p003133/ Record: <wfdb.io.record.Record 
 Problem parsing patient record [patient: p00/p003133/, record: 3964092_0010]
 Problem with patient [Patient: p00/p003133/]
 ---------- 2025-02-20 11:17:03
+---------- 2025-04-06 15:25:22
+Problem converting record [Patient: p05/p050804/ Record: <wfdb.io.record.Record object at 0x00000290E56D6E20>]
+Problem converting record [Patient: p00/p000125/ Record: <wfdb.io.record.Record object at 0x00000290B37701C0>]
