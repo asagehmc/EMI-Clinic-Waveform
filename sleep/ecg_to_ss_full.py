@@ -5,6 +5,7 @@ import numpy as np
 import sleepecg
 import wfdb
 import os
+from scipy.signal import find_peaks
 
 PHYSIONET = "https://physionet.org/files/"
 MIMIC = "mimic3wdb-matched/1.0/"
@@ -67,9 +68,17 @@ def process_bp_data(bp, fs):
     i = 0
     out = np.array([])
     bp_len = len(bp)
+    # allow one peak every half of a second (works well for most heart rates of sleeping ~1/s)
+    distance_btwn_peaks = 2 / fs
     while i + window_size <= bp_len:
-        mean = np.nanmean(bp[i: min(i + window_size, bp_len)])
-        out = np.append(out, round(float(mean), 2))
+        window = bp[i: i + window_size]
+        peaks, _ = find_peaks(window, distance=distance_btwn_peaks)
+        troughs, _ = find_peaks(-window, distance=distance_btwn_peaks)
+
+        systolic = np.median(window[peaks])
+        diastolic = np.median(window[troughs])
+
+        out = np.append(out, [systolic, diastolic])
         i += window_size
     return out
 
@@ -158,8 +167,8 @@ def write_to_file(patient, segment_name, converted, segment_datetime):
     Returns:
         None
     """
-    os.makedirs(f"data/patients/{patient}", exist_ok=True)
-    with open(f"data/patients/{patient}/{segment_name}.json", "w") as f:
+    os.makedirs(f"data/patients_cvd/{patient}", exist_ok=True)
+    with open(f"data/patients_cvd/{patient}/{segment_name}.json", "w") as f:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         converted["last_update"] = now
         converted["date"] = str(segment_datetime)
@@ -169,7 +178,7 @@ def write_to_file(patient, segment_name, converted, segment_datetime):
 
 #
 #
-def scan_mimic(error_path):
+def scan_mimic(error_path, override_list=None, starting_point=None):
     """
     Iterates through the patients in mimic, finds records which are valid for ss processing
     and converts them, writing the result to a directory in data/patients
@@ -181,15 +190,13 @@ def scan_mimic(error_path):
         None
     """
 
-    # get the list of patients from the db
-    record_list = wfdb.get_record_list(MIMIC)
+    # get the list of patients from the db, or use override list if provided
+    record_list = override_list if override_list is not None else wfdb.get_record_list(MIMIC)
 
-    starting_point = "p001978"
+    # jump to a predetermined starting point
     shortened_record_list = record_list[
                             record_list.index(f"{starting_point[0:3]}/{starting_point}/") if starting_point is not None \
-                            else record_list:]
-
-    # for showing percentages while running
+                                else record_list:]
     for patient in shortened_record_list:
         try:
             # get the list of records for an individual patient
@@ -249,4 +256,6 @@ if __name__ == "__main__":
     error_file = "errors.txt"
     error_write(error_file, f"---------- {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     # run process
-    scan_mimic(error_file)
+    override_list = None
+    starting_point = None
+    scan_mimic(error_file, override_list, starting_point)
