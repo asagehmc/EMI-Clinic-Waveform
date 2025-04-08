@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import random
+import pandas as pd
 
 from pandas.errors import InvalidIndexError
 from sklearn.svm import SVC
@@ -10,15 +11,12 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import train_test_split
 
-
 # SKETCHY DIRECTORY SOLUTION
 os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
 from time2feat.t2f.extraction.extractor import feature_extraction
 from time2feat.t2f.utils.importance_old import feature_selection
 from time2feat.t2f.model.clustering import ClusterWrapper
 os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
-
-# from preprocessing import X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
 
 def cross_validate_summary_model(X, y, model_type):
     """
@@ -50,8 +48,9 @@ def score_summary_model(X, y, model_type, test_size=0.2):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
     model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
 
-    return model.score(X_test, y_test)
+    return accuracies(y_pred, y_test)
 
 def train_t2f_model(X, transform_type, model_type, y=None, training_sampling=0):
     """
@@ -90,6 +89,7 @@ def train_t2f_model(X, transform_type, model_type, y=None, training_sampling=0):
 
     return y_pred, model
 
+
 def accuracies(y_pred, y_true):
     """
     gets accuracy metrics
@@ -100,8 +100,12 @@ def accuracies(y_pred, y_true):
     direct_accuracy = 100 * np.sum(y_pred == y_true) / len(y_true)
     risk_accuracy = 100 * np.sum([1 if pred==true else 0 for pred,true in zip(y_pred, y_true) if true==1]) / np.sum(y_true)
     no_risk_accuracy = 100 * np.sum([1 if pred==true else 0 for pred,true in zip(y_pred, y_true) if true==0]) / (len(y_true) - np.sum(y_true))
+    # Fall out or false positive rate
+    FPR = 100 * np.sum([1 if pred!=true else 0 for pred,true in zip(y_pred, y_true) if pred==1]) / (len(y_true) - np.sum(y_true))
+    # False negative rate
+    FNR = 100 * np.sum([1 if pred!=true else 0 for pred,true in zip(y_pred,y_true) if pred==0]) / np.sum(y_true)
 
-    return direct_accuracy, risk_accuracy, no_risk_accuracy
+    return direct_accuracy, risk_accuracy, no_risk_accuracy, FPR, FNR
 
 def compare_unsupervised_clustering(X,y):
     unsupervised_accuracies = {}
@@ -124,12 +128,12 @@ def compare_unsupervised_clustering(X,y):
 
     return unsupervised_accuracies
 
-def compare_averaged_unsupervised_clustering(X,y):
+def compare_averaged_unsupervised_clustering(X,y, num_runs):
     unsupervised_accuracies = {}
     for model_type in ['Hierarchical','KMeans','Spectral']:
         for transform_type in ['std','minmax','robust']:
             accuracies_list = []
-            for i in range(10):
+            for i in range(num_runs):
                 failed = True
                 i = 0
                 while failed == True:
@@ -156,12 +160,12 @@ def compare_averaged_unsupervised_clustering(X,y):
 
     return unsupervised_accuracies
 
-def compare_averaged_supervised_clustering(X,y,training_sampling):
+def compare_averaged_supervised_clustering(X,y,training_sampling, num_runs):
     supervised_accuracies = {}
     for model_type in ['Hierarchical','KMeans','Spectral']:
         for transform_type in ['std','minmax','robust']:
             accuracies_list = []
-            for i in range(10):
+            for i in range(num_runs):
                 failed = True
                 while failed == True:
                     try:
@@ -194,18 +198,52 @@ def compare_summary_models(X1,y1,X2,y2):
 
     return
 
-def compare_averages_summary_models(X1,y1,X2,y2):
-    for pair in [(X1,y1),(X2,y2)]:
-        print("pair")
-        X = pair[0]
-        y = pair[1]
+def compare_averages_summary_models(X,y):
+    accuracies = {}
+    for model_type in ["svc","rfc","knc"]:
+        accuracies_list = []
+        for i in range(50):
+            scores = score_summary_model(X,y,model_type)
+            print(scores)
+            accuracies_list += [scores]
 
-        for model_type in ["svc","rfc","knc"]:
-            accuracies_list = []
-            for i in range(10):
-                accuracies_list += [score_summary_model(X,y,model_type)]
-            print(model_type)
-            print(np.mean(accuracies_list))
-            print()
+        averaged_accuracies = np.apply_along_axis(np.mean, 0, np.array(accuracies_list))
+        print(model_type)
+        print(averaged_accuracies)
+        print()
 
     return
+
+def get_selected_features_over_n_runs(n, X, transform_type, model_type, y=None, training_sampling=0):
+    selected_features_dict = {}
+    for i in range(n):
+        if y is None:
+            labels = {}  # unsupervised mode
+        else:
+            i_label_sample = random.sample(range(len(y)), int(training_sampling * len(y)))
+            labels = {i: y[i] for i in i_label_sample}  # semi-supervised mode
+            print(labels)
+
+        # transpose from (patients, variables, timestamps) to (patients, timestamps, variables)
+        X_ts = np.transpose(X, (0, 2, 1))
+
+        # Feature extraction
+        print("extracting features")
+        df_feats = feature_extraction(X_ts, batch_size=100, p=1)
+
+        # Feature selection
+        context = {'model_type': model_type, 'transform_type': transform_type}
+        print("selecting features")
+        top_feats = feature_selection(df_feats, labels=labels, context=context)
+
+        print(top_feats)
+        for feat in top_feats:
+            if feat in selected_features_dict.keys():
+                selected_features_dict[feat] += 1
+            else:
+                selected_features_dict[feat] = 1
+        print('finished adding to dict')
+
+    return selected_features_dict
+
+

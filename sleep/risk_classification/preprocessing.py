@@ -136,13 +136,15 @@ def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demogra
     nan_mask = np.isnan(X).any(axis=1)
     X = X[~nan_mask]
 
+    new_patient_ids = patient_ids[~nan_mask]
+
     if labels:
         y = get_patient_labels(patient_ids)
         # y = y[mostly_sleep_mask]
         y = y[~nan_mask]
-        return X,y
+        return X,y, new_patient_ids
     else:
-        return X
+        return X, new_patient_ids
 
 
 def pad_list_of_arrays(list_of_arrays, max_length, padding_value=0):
@@ -180,10 +182,14 @@ def get_start_before_sleep(bp_ss):
 
     awake = np.pad(np.apply_along_axis(lambda x: stats.mode(x)[0]==3, 1, sliding_window_view(ss, 30)),(15,14) , 'edge')
 
+    # np.array([np.pad(np.apply_along_axis(lambda x: np.mean(x), 1, sliding_window_view(bp, 10)), (5, 4), 'edge') for bp in bp_arrays])
+
     try:
         sleep_start = np.where(awake==False)[0][0] - 15
+        print("found sleep start")
     except IndexError:
         # no sleep in data
+        print("not sleep start")
         return np.array([[],[]])
 
     after_sleep_bp_ss = np.concatenate((bp[sleep_start:].reshape(1,-1), ss[sleep_start:].reshape(1,-1)), axis=0)
@@ -211,11 +217,13 @@ def get_time_series_features(patient_ids, start_before_sleep_arrays, labels):
     nan_mask = np.isnan(X).any(axis=(1,2))
     X = X[~nan_mask]
 
+    new_patient_ids = patient_ids[has_eight_hours][~nan_mask]
+
     if labels:
         y = get_patient_labels(patient_ids)
-        return X,y[has_eight_hours][~nan_mask]
+        return X,y[has_eight_hours][~nan_mask], new_patient_ids
     else:
-        return X
+        return X, new_patient_ids
 
 
 def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics):
@@ -233,15 +241,21 @@ def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demogr
         features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels)
 
     if labels:
-        return features[0], features[1]
+        # features, labels, corresponding patient ids
+        return features[0], features[1], features[2]
     else:
-        return features
+        # features, corresponding patient ids
+        return features[0], features[1]
 
 if __name__ == '__main__':
     # getting features and labels for three different scenarios
     data_dictionary = get_aligned_ss_and_bp()
-    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
+    patient_ids = np.array([tup[0] for tup in list(data_dictionary.keys())])
     start_before_sleep_arrays = [get_start_before_sleep(bp_ss) for bp_ss in list(data_dictionary.values())]
-    X_sum, y_sum = get_features(patient_ids, start_before_sleep_arrays, True, True, False)
-    X_sum_dem, y_sum_dem = get_features(patient_ids, start_before_sleep_arrays, True, True, True)
-    X_ts, y_ts = get_features(patient_ids, start_before_sleep_arrays, False, True, False)
+    print("got sleep starts")
+    X_sum, y_sum, patient_ids_sum = get_features(patient_ids, start_before_sleep_arrays, True, True, False)
+    print("sum")
+    X_sum_dem, y_sum_dem, patient_ids_sum_dem = get_features(patient_ids, start_before_sleep_arrays, True, True, True)
+    print("sum dem")
+    X_ts, y_ts, patient_ids_ts = get_features(patient_ids, start_before_sleep_arrays, False, True, False)
+    print("ts")

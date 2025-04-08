@@ -151,10 +151,56 @@ def check_if_died_during_admission(patient_id, datetime_str):
 
     return False
 
-patients = pd.read_csv('mimic_data/PATIENTS.csv')
-admissions = pd.read_csv('mimic_data/ADMISSIONS.csv')
-diagnoses = pd.read_csv('mimic_data/DIAGNOSES_ICD.csv')
+def ethnicities_for_pids(patient_ids):
+    """
+    :param patient_ids: list of ints
+    :return:
+    """
+    ethnicities_for_model_patients = [ethnicities_leadii[ethnicities_leadii.SUBJECT_ID == pid].ETHNICITY_COND.values[0]
+                                      if len(ethnicities_leadii[ethnicities_leadii.SUBJECT_ID == pid].ETHNICITY_COND.values) == 1
+                                      else 'UNKNOWN' for pid in patient_ids]
+    return ethnicities_for_model_patients
 
-admissions_leadii, patients_leadii, diagnoses_leadii = get_leadii_dataframes(patients, admissions, diagnoses)
+def get_race(ethn):
+    if 'ASIAN' in ethn:
+        return 'ASIAN'
+    elif 'BLACK' in ethn:
+        return 'BLACK'
+    elif 'WHITE' in ethn:
+        return 'WHITE'
+    elif 'HISPANIC' in ethn:
+        return 'HISPANIC/LATINO'
+    elif ethn=='NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER':
+        return 'PACIFIC ISLANDER'
+    elif ethn=='MIDDLE EASTERN':
+        return 'WHITE'
+    elif ethn=='PORTUGUESE':
+        return 'WHITE'
+    else:
+        return 'UNKNOWN'
 
-add_icd_10_code_to_diagnoses(diagnoses_leadii)
+def make_testing_dataframe(patient_ids, y_pred, y_true):
+    pids_ints = [int(pid) for pid in patient_ids]
+
+    ethnicities_for_model_patients = ethnicities_for_pids(pids_ints)
+    age_sex = np.array([basic_info(pid) for pid in pids_ints])
+    age = age_sex[:,0]
+    sex = age_sex[:,1]
+
+    df = pd.DataFrame({'PATIENT_ID':pids_ints, 'Y_PRED':y_pred, 'Y_TRUE':y_true,
+                       'ETHNICITY':ethnicities_for_model_patients, 'AGE':age, 'SEX':sex})
+    # df = pd.DataFrame({'PATIENT_ID':pids_ints, 'Y_PRED':y_pred, 'Y_TRUE':y_true, 'AGE':age, 'SEX':sex})
+
+    return df
+
+
+if __name__ == '__main__':
+    patients = pd.read_csv('mimic_data/PATIENTS.csv')
+    admissions = pd.read_csv('mimic_data/ADMISSIONS.csv')
+    diagnoses = pd.read_csv('mimic_data/DIAGNOSES_ICD.csv')
+
+    admissions_leadii, patients_leadii, diagnoses_leadii = get_leadii_dataframes(patients, admissions, diagnoses)
+    ethnicities_leadii = admissions_leadii.drop_duplicates(subset='SUBJECT_ID')
+    ethnicities_leadii['ETHNICITY_COND'] = ethnicities_leadii.ETHNICITY.apply(lambda x: get_race(x))
+
+    add_icd_10_code_to_diagnoses(diagnoses_leadii)
