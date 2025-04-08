@@ -22,12 +22,12 @@ def ecg_staging(path, dataset):
         beats = sleepecg.detect_heartbeats(ecg, fs)
     except Exception as e:
         print(f"Error detecting heartbeats for file {path} with fs={fs}: {e}")
-        return None  # Skip this file
+        return None
 
-    # Loading weighted classifier
-    clf = sleepecg.load_classifier("wrn-gru-mesa-weighted", "SleepECG")
+    # Loading nonweighted classifier
+    clf = sleepecg.load_classifier("wrn-gru-mesa", "SleepECG")
 
-    # Predicting sleep stages using weighted probabilities
+    # Predicting sleep stages
     record = sleepecg.SleepRecord(
         sleep_stage_duration=30,
         recording_start_time=rec_start,
@@ -35,15 +35,21 @@ def ecg_staging(path, dataset):
     )
     stages = sleepecg.stage(clf, record, return_mode="prob")
     stage_labels = np.argmax(stages, axis=1)
-    # Mapping for weighted: indices 0 & 1 -> nrem, 2 -> rem, 3 -> wake
-    stage_mapping = {0: "nrem", 1: "nrem", 2: "rem", 3: "wake"}
-    stage_labels_named = [stage_mapping[i] for i in stage_labels]
+    mapping = {0: "Undefined", 1: "Non-REM", 2: "REM sleep", 3: "Wake"}
+    stage_labels_named = [mapping[i] for i in stage_labels]
 
-    return stage_labels_named
+    # Coverting multi-stage to binary: awake if 'Wake', otherwise sleep
+    binary_labels = []
+    for label in stage_labels_named:
+        if label == 'Wake':
+            binary_labels.append('awake')
+        else:
+            binary_labels.append('sleep')
+    return binary_labels
 
 def parse_shhs_xml(xml_file, epoch_length=30):
     """
-    Parsing an SHHS XML file to extract sleep stage annotations
+    Parsing an SHHS XML file to extract sleep stage annotations.
     """
     tree = ET.parse(xml_file)
     root = tree.getroot()
@@ -69,54 +75,44 @@ def parse_shhs_xml(xml_file, epoch_length=30):
 
 def compare(pred, real, output_conf_file=None):
     """
-    Comparing weighted predictions to the ground truth:
-      'Wake'       -> 'awake'
-      'REM sleep'  -> 'rem'
-      All others   -> 'nrem'
+    Comparing nonweighted (binary) predictions to the ground truth:
+        Wake' -> 'awake'; all others -> 'sleep'
     """
-    # Extracting the stage column from XML annotations
+    # Extracting stage column from XML annotations
     real_stages = real[:, -1]
-    real_mapped = np.array(['awake' if stage == 'Wake'
-                            else 'rem' if stage == 'REM sleep'
-                            else 'nrem' for stage in real_stages])
-    # For predictions, treating 'REM sleep' as 'rem' if it occurs
-    pred_mapped = ['awake' if p == 'awake'
-                   else 'rem' if p in ['REM sleep', 'rem']
-                   else 'nrem' for p in pred]
+    real_binary = np.array(['awake' if stage == 'Wake' else 'sleep' for stage in real_stages])
+    pred_mapped = ['awake' if p == 'awake' else 'sleep' for p in pred]
 
-    # Truncating the arrays to be the same length
-    min_len = min(len(real_mapped), len(pred_mapped))
-    real_mapped = real_mapped[:min_len]
+    min_len = min(len(real_binary), len(pred_mapped))
+    real_binary = real_binary[:min_len]
     pred_mapped = pred_mapped[:min_len]
 
-    acc = accuracy_score(real_mapped, pred_mapped)
-    kappa = cohen_kappa_score(real_mapped, pred_mapped)
-    class_labels = ['awake', 'rem', 'nrem']
-    conf_matrix = confusion_matrix(real_mapped, pred_mapped, labels=class_labels)
+    acc = accuracy_score(real_binary, pred_mapped)
+    kappa = cohen_kappa_score(real_binary, pred_mapped)
+    conf_matrix = confusion_matrix(real_binary, pred_mapped)
 
     print(f"Accuracy: {acc:.4f}")
     print(f"Cohen's Kappa: {kappa:.4f}")
     print("Confusion Matrix:")
     print(conf_matrix)
 
-    # Saving confusion matrix if a file path is provided
     if output_conf_file is not None:
-        labels = ['awake', 'rem', 'nrem']
+        labels = ['awake', 'sleep']
         conf_df = pd.DataFrame(conf_matrix,
                                index=[f"True_{l}" for l in labels],
                                columns=[f"Pred_{l}" for l in labels])
         conf_df.to_csv(output_conf_file)
-        print(f"Weighted confusion matrix saved to {output_conf_file}")
+        print(f"Nonweighted confusion matrix saved to {output_conf_file}")
 
     return acc
 
 def save_predictions(pred, file_path):
     """
-    Saving the weighted predicted sleep stage annotations to a CSV file
+    Saving the nonweighted predicted sleep stage annotations to a CSV file
     """
     df = pd.DataFrame({"Stage": pred})
     df.to_csv(file_path, index=False)
-    print(f"Weighted predictions saved to {file_path}")
+    print(f"Nonweighted predictions saved to {file_path}")
 
 if __name__ == "__main__":
     # Choosing the dataset: 'shhs1' or 'mesa-sleep'
@@ -135,20 +131,19 @@ if __name__ == "__main__":
     file_count = 0
     accuracy_records = []
 
-    # Creating output folders for weighted predictions and confusion matrices
-    output_folder = "output_predictions/weighted_predictions/"
+    # Creating output folders for nonweighted predictions and confusion matrices
+    output_folder = "output_predictions/nonweighted_predictions/"
     os.makedirs(output_folder, exist_ok=True)
-    conf_output_folder = "output_confusion_matrices/weighted/"
+    conf_output_folder = "output_confusion_matrices/nonweighted/"
     os.makedirs(conf_output_folder, exist_ok=True)
 
     for edf in edfs:
         if edf.endswith(".edf"):
             edf_full_path = os.path.join(edf_path, edf)
-            # Extracting the ID from filename
             id_num = edf[-10:-4]
             xml_file = os.path.join(xml_path, f"{dataset}-{id_num}-nsrr.xml")
             file_count += 1
-            print(f"\nProcessing weighted file: {edf_full_path}")
+            print(f"\nProcessing nonweighted file: {edf_full_path}")
             print(f"Using XML file: {xml_file}")
 
             pred = ecg_staging(edf_full_path, dataset)
@@ -157,24 +152,23 @@ if __name__ == "__main__":
                 continue
 
             real = parse_shhs_xml(xml_file)
-            # Defining unique file names for the confusion matrices
-            conf_file = os.path.join(conf_output_folder, f"{os.path.splitext(edf)[0]}_wgt_confusion_matrix.csv")
+            # Defining unique filenames for the confusion matrix
+            conf_file = os.path.join(conf_output_folder, f"{os.path.splitext(edf)[0]}_nonwgt_confusion_matrix.csv")
             acc = compare(pred, real, output_conf_file=conf_file)
             acc_sum += acc
-            print(f"File {file_count} Weighted Accuracy: {acc:.4f}, Running average: {acc_sum / file_count:.4f}")
+            print(f"File {file_count} Nonweighted Accuracy: {acc:.4f}, Running average: {acc_sum / file_count:.4f}")
 
             accuracy_records.append({
                 "File": os.path.basename(edf_full_path),
                 "Accuracy": acc
             })
 
-            # Saving the predictions
-            output_file = os.path.join(output_folder, f"{os.path.splitext(edf)[0]}_wgt_predictions.csv")
+            output_file = os.path.join(output_folder, f"{os.path.splitext(edf)[0]}_nonwgt_predictions.csv")
             save_predictions(pred, output_file)
 
     overall_accuracy = acc_sum / file_count if file_count > 0 else 0
-    print(f"\nOverall Weighted Accuracy: {overall_accuracy:.4f}")
+    print(f"\nOverall Nonweighted Accuracy: {overall_accuracy:.4f}")
     acc_df = pd.DataFrame(accuracy_records)
-    acc_output_file = os.path.join(output_folder, "wgt_accuracy_records.csv")
+    acc_output_file = os.path.join(output_folder, "nonwgt_accuracy_records.csv")
     acc_df.to_csv(acc_output_file, index=False)
-    print(f"Weighted accuracy records saved to {acc_output_file}")
+    print(f"Nonweighted accuracy records saved to {acc_output_file}")

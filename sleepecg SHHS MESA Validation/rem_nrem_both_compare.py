@@ -6,115 +6,167 @@ import os
 import xml.etree.ElementTree as ET
 import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix, cohen_kappa_score
+import scipy.signal
 
 
-def ecg_staging(path, dataset, weighted=False):
+# Using Monkey-patch scipy.signal.butter to adjust the cutoff frequency if needed
+def custom_butter(N, Wn, btype, fs, **kwargs):
+    # If Wn is a float, ensure it's strictly less than fs/2.
+    if isinstance(Wn, (int, float)):
+        if Wn >= fs / 2:
+            Wn = fs / 2 - 0.1  # reduce slightly below the Nyquist limit.
+    else:
+        # If Wn is a list or tuple, adjust each element.
+        Wn = [w if w < fs / 2 else fs / 2 - 0.1 for w in Wn]
+    return scipy.signal.iirfilter(N, Wn, btype=btype, analog=False, ftype='butter', fs=fs, **kwargs)
+
+
+scipy.signal.butter = custom_butter
+
+
+def combined_ecg_staging(path, dataset):
+    """
+    Runs both the nonweighted and weighted algorithms on a given EDF file and combines their outputs.
+
+    Nonweighted is used for binary sleep/wake classification and weighted for finer sleep staging.
+    For each epoch:
+      - If the nonweighted classifier says "awake", then the final label is "awake" (even if weighted says "rem").
+      - If nonweighted predicts "sleep" and weighted predicts "wake", then final label is set to "rem".
+      - Otherwise, use the weighted prediction.
+    """
     edf = read_edf(path)
-
-    # crop dataset (we only want data for the sleep duration)
     rec_start = datetime.combine(edf.startdate, edf.starttime)
 
-    # get ECG time series and sampling frequency
-    if dataset == "mesa-sleep":
-        signal_type = "EKG"
-    else:
-        signal_type = "ECG"
+    # Getting the ECG signal and sampling frequency.
+    signal_type = "EKG" if dataset == "mesa-sleep" else "ECG"
     ecg = edf.get_signal(signal_type).data
     fs = edf.get_signal(signal_type).sampling_frequency
+    print(f"ECG duration available: {len(ecg) / fs:.2f} seconds")
 
-    print(f"ECG duration available: {len(ecg) / fs} seconds")
+    # Detecting heartbeats (run once for both algorithms)
+    try:
+        beats = sleepecg.detect_heartbeats(ecg, fs)
+    except Exception as e:
+        print(f"Error detecting heartbeats for file {path} with fs={fs}: {e}")
+        return None  # Skipping this file if an error occurs
 
-    # detect heartbeats
-    beats = sleepecg.detect_heartbeats(ecg, fs)
-
-    # choose classifier based on whether it is weighted or not
-    if weighted:
-        clf = sleepecg.load_classifier("wrn-gru-mesa-weighted", "SleepECG")
-    else:
-        clf = sleepecg.load_classifier("wrn-gru-mesa", "SleepECG")
-
-    # predict sleep stages
+    # Building the SleepRecord (30-second epochs)
     record = sleepecg.SleepRecord(
         sleep_stage_duration=30,
         recording_start_time=rec_start,
         heartbeat_times=beats / fs,
     )
 
-    stages = sleepecg.stage(clf, record, return_mode="prob")
+    # NONWEIGHTED ALGORITHM (binary sleep/wake)
+    clf_nonwgt = sleepecg.load_classifier("wrn-gru-mesa", "SleepECG")
+    stages_nonwgt = sleepecg.stage(clf_nonwgt, record, return_mode="prob")
+    stage_labels_nonwgt = np.argmax(stages_nonwgt, axis=1)
 
-    stage_labels = np.argmax(stages, axis=1)  # Get index of max probability per row
+    # Mapping for nonweighted: index 3 corresponds to Wake.
+    mapping_nonwgt = {0: "Undefined", 1: "Non-REM", 2: "REM sleep", 3: "Wake"}
+    stage_labels_nonwgt_named = [mapping_nonwgt[i] for i in stage_labels_nonwgt]
 
-    stage_mapping = {0: "Undefined", 1: "Non-REM", 2: "REM sleep", 3: "Wake"}
-    stage_labels_named = [stage_mapping[i] for i in stage_labels]
+    # Converting to binary: "awake" if label is "Wake", otherwise "sleep"
+    binary_labels = ['awake' if label == "Wake" else 'sleep' for label in stage_labels_nonwgt_named]
 
-    return stage_labels_named
+    # WEIGHTED ALGORITHM (finer sleep staging)
+    clf_wgt = sleepecg.load_classifier("wrn-gru-mesa-weighted", "SleepECG")
+    stages_wgt = sleepecg.stage(clf_wgt, record, return_mode="prob")
+    stage_labels_wgt = np.argmax(stages_wgt, axis=1)
+
+    # Mapping for weighted: expecting indices to map to "nrem", "nrem", "rem", "wake"
+    mapping_wgt = {0: "nrem", 1: "nrem", 2: "rem", 3: "wake"}
+    stage_labels_wgt_named = [mapping_wgt[i] for i in stage_labels_wgt]
+
+    # Combining the predictions
+    final_labels = []
+    for bin_label, wgt_label in zip(binary_labels, stage_labels_wgt_named):
+        if bin_label == "awake":
+            # If nonweighted predicts awake, final is always awake (even if weighted says rem)
+            final_labels.append("awake")
+        else:
+            # If nonweighted predicts sleep and weighted predicts wake, map to rem
+            if wgt_label == "wake":
+                final_labels.append("rem")
+            else:
+                final_labels.append(wgt_label)
+    return final_labels
 
 
-def parse_shhs_xml(xml_file, epoch_length=30):
+def parse_shhs_xml_combined(xml_file, epoch_length=30):
     """
-    Parses an SHHS XML file to extract sleep stage annotations.
+    Parsing an SHHS XML file to extract sleep stage annotations
+    Each event is broken into epochs of given duration
     """
     tree = ET.parse(xml_file)
     root = tree.getroot()
     scored_events = root.findall("ScoredEvents/ScoredEvent")
-    sleep_events = [scored_event for scored_event in scored_events if
-                    scored_event.find("EventType").text == "Stages|Stages"]
+    # Only select events for sleep staging
+    sleep_events = [event for event in scored_events if event.find("EventType").text == "Stages|Stages"]
 
     sleep_stages = []
-
     start = 0
     for event in sleep_events:
         duration = float(event.find("Duration").text)
-        sleep_stage = event.find("EventConcept").text[:-2]
-        if sleep_stage not in ["Wake", "REM sleep"]:
-            sleep_stage = "Non-REM"
-        num_sub_events = int(duration / epoch_length)
-        for i in range(num_sub_events):
+        stage = event.find("EventConcept").text[:-2]  # remove last 2 characters (if any formatting)
+        if stage not in ["Wake", "REM sleep"]:
+            stage = "Non-REM"
+        num_epochs = int(duration / epoch_length)
+        for _ in range(num_epochs):
             end = start + epoch_length
-            sleep_stages.append([start, epoch_length, end, sleep_stage])
+            sleep_stages.append([start, epoch_length, end, stage])
             start = end
 
     sleep_stages = np.array(sleep_stages)
-
-    print(f"total duration: {sleep_stages[-1][2]}")
-
+    print(f"Total duration from XML: {sleep_stages[-1][2]} seconds")
     return sleep_stages
 
 
-def compare(pred, real):
-    real = real[:, -1]
+def compare_combined(pred, real, output_conf_file=None):
+    """
+    Compares combined predictions to the ground truth:
+        "Wake"       -> "awake"
+        "REM sleep"  -> "rem"
+        All others   -> "nrem"
 
-    print(len(real))
-    print(len(pred))
-    min_len = min(len(real), len(pred))
-    real = real[:min_len]
+    If output_conf_file is provided, the confusion matrix is saved to that path
+    """
+    # Extracting the stage labels (fourth column)
+    real_stages = real[:, -1]
+    real_mapped = np.array(['awake' if stage == 'Wake'
+                            else 'rem' if stage == 'REM sleep'
+    else 'nrem' for stage in real_stages])
+
+    pred = np.array(pred)
+    # Truncating to the shortest length if needed
+    min_len = min(len(real_mapped), len(pred))
+    real_mapped = real_mapped[:min_len]
     pred = pred[:min_len]
 
-    acc = accuracy_score(real, pred)
-    kappa = cohen_kappa_score(real, pred)
-    conf_matrix = confusion_matrix(real, pred)
+    acc = accuracy_score(real_mapped, pred)
+    kappa = cohen_kappa_score(real_mapped, pred)
+    conf_matrix = confusion_matrix(real_mapped, pred)
 
-    # print(f"Accuracy: {acc:.4f}")
-    # print(f"Cohen’s Kappa: {kappa:.4f}")
-    # print("Confusion Matrix:")
-    # print(conf_matrix)
+    print(f"Accuracy: {acc:.4f}")
+    print(f"Cohen's Kappa: {kappa:.4f}")
+    print("Confusion Matrix:")
+    print(conf_matrix)
+
+    # Saving the confusion matrix to a CSV file if a file path is provided
+    if output_conf_file is not None:
+        labels = ['awake', 'rem', 'nrem']
+        conf_df = pd.DataFrame(conf_matrix,
+                               index=[f"True_{l}" for l in labels],
+                               columns=[f"Pred_{l}" for l in labels])
+        conf_df.to_csv(output_conf_file)
+        print(f"Confusion matrix saved to {output_conf_file}")
 
     return acc
 
 
-def save_predictions(pred, file_path):
-    # Function to save the weighted + nonweighted predictions to a CSV file
-    df = pd.DataFrame(pred, columns=["Time", "Stage"])
-    df.to_csv(file_path, index=False)
-
-
 if __name__ == "__main__":
-
-    # set this to the dataset we want to use
-    dataset = "shhs1"  # OPTIONS: 'shhs1' or 'mesa-sleep'
-
-    if dataset not in ['mesa-sleep', 'shhs1']:
-        raise ValueError("dataset MUST be one of mesa-sleep or shhs1")
+    # Choosing the dataset: 'shhs1' or 'mesa-sleep'
+    dataset = "shhs1"
     if dataset == "mesa-sleep":
         edf_path = "mesa/polysomnography/edfs/"
         xml_path = "mesa/polysomnography/annotations-events-nsrr/"
@@ -122,54 +174,61 @@ if __name__ == "__main__":
         edf_path = "shhs/polysomnography/edfs/shhs1/"
         xml_path = "shhs/polysomnography/annotations-events-nsrr/shhs1/"
 
-    edfs = os.listdir(edf_path)
-    xmls = os.listdir(xml_path)
-    num_files = min(len(edfs), len(xmls))
+    edf_files = os.listdir(edf_path)
+    xml_files = os.listdir(xml_path)
+    num_files = min(len(edf_files), len(xml_files))
     acc_sum = 0
+    file_count = 0
+    accuracy_records = []
 
-    num = 0
-    non_weighted_preds = []
-    weighted_preds = []
+    # Creating output folders for combined predictions and confusion matrices
+    output_folder = "output_predictions/combined_prediction"
+    os.makedirs(output_folder, exist_ok=True)
+    conf_output_folder = "output_confusion_matrices/combined/"
+    os.makedirs(conf_output_folder, exist_ok=True)
 
-    for edf in edfs:
-        if edf[-4:] == ".edf":
-            edf_path_full = f"{edf_path}{edf}"
-            id_num = edf_path_full[(-10 + (2 * int(dataset == "mesa-sleep"))):-4]
-            xml = f"{xml_path}{dataset}-{id_num}-nsrr.xml"
-            num += 1
-            print(edf_path_full)
-            print(xml)
+    # Processing each EDF file
+    for edf in edf_files:
+        if edf.endswith(".edf"):
+            edf_full_path = os.path.join(edf_path, edf)
+            # For shhs1, extracting the ID from the filename
+            id_num = edf[-10:-4]
+            xml_file = os.path.join(xml_path, f"{dataset}-{id_num}-nsrr.xml")
+            file_count += 1
+            print(f"\nProcessing file: {edf_full_path}")
+            print(f"Using XML file: {xml_file}")
 
-            # Non-weighted classifier for wake detection
-            pred_non_weighted = ecg_staging(edf_path_full, dataset, weighted=False)
-            non_weighted_preds.append(pred_non_weighted)
+            # Getting the combined predictions
+            combined_pred = combined_ecg_staging(edf_full_path, dataset)
+            if combined_pred is None:
+                print(f"Skipping file {edf_full_path} due to heartbeat detection error.")
+                continue
 
-            # Weighted classifier for sleep stage detection
-            pred_weighted = ecg_staging(edf_path_full, dataset, weighted=True)
-            weighted_preds.append(pred_weighted)
+            # Parsing the XML annotations
+            real = parse_shhs_xml_combined(xml_file)
+            # Defining a unique filename for the confusion matrix
+            conf_file = os.path.join(conf_output_folder, f"{os.path.splitext(edf)[0]}_confusion_matrix.csv")
+            # Evaluating the combined predictions and saving the confusion matrix
+            acc = compare_combined(combined_pred, real, output_conf_file=conf_file)
+            acc_sum += acc
+            print(f"File {file_count} Accuracy: {acc:.4f}, Current average: {acc_sum / file_count:.4f}")
 
-            real = parse_shhs_xml(xml)
-            acc_non_weighted = compare(pred_non_weighted, real)
-            acc_weighted = compare(pred_weighted, real)
-            acc_sum += acc_non_weighted
-            print(f"Pass: {num}, Non-weighted Accuracy: {acc_non_weighted}, Weighted Accuracy: {acc_weighted}")
+            accuracy_records.append({
+                "File": os.path.basename(edf_full_path),
+                "Accuracy": acc
+            })
 
-    accuracy_non_weighted = acc_sum/num
-    print(f"Non-weighted Accuracy: {accuracy_non_weighted:.4f}")
+            # Saving the combined predictions to a CSV file
+            output_file = os.path.join(output_folder, f"{os.path.splitext(edf)[0]}_combined_predictions.csv")
+            df = pd.DataFrame({"Stage": combined_pred})
+            df.to_csv(output_file, index=False)
+            print(f"Combined predictions saved to {output_file}")
 
-    # Saving results to two different folders
-    output_non_weighted = "output/non_weighted_predictions/"
-    output_weighted = "output/weighted_predictions/"
+    overall_accuracy = acc_sum / file_count if file_count > 0 else 0
+    print(f"\nOverall Accuracy: {overall_accuracy:.4f}")
 
-    os.makedirs(output_non_weighted, exist_ok=True)
-    os.makedirs(output_weighted, exist_ok=True)
-
-    # Save both of our predictions to two different folders
-    for i, edf in enumerate(edfs):
-        if edf[-4:] == ".edf":
-            # Non-weighted predictions
-            save_predictions(non_weighted_preds[i], f"{output_non_weighted}{edf[:-4]}_non_weighted_predictions.csv")
-            # Weighted predictions
-            save_predictions(weighted_preds[i], f"{output_weighted}{edf[:-4]}_weighted_predictions.csv")
-
-    print(f"Predictions saved to {output_non_weighted} and {output_weighted}")
+    # Saving the accuracy summary
+    acc_df = pd.DataFrame(accuracy_records)
+    acc_output_file = os.path.join(output_folder, "combined_accuracy_records.csv")
+    acc_df.to_csv(acc_output_file, index=False)
+    print(f"Accuracy records saved to {acc_output_file}")
