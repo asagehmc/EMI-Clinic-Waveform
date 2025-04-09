@@ -87,7 +87,7 @@ def train_t2f_model(X, transform_type, model_type, y=None, training_sampling=0):
     y_pred = model.fit_predict(df_feats)
     print(y_pred.shape)
 
-    return y_pred, model
+    return y_pred, model, top_feats
 
 
 def accuracies(y_pred, y_true):
@@ -214,36 +214,33 @@ def compare_averages_summary_models(X,y):
 
     return
 
-def get_selected_features_over_n_runs(n, X, transform_type, model_type, y=None, training_sampling=0):
-    selected_features_dict = {}
-    for i in range(n):
-        if y is None:
-            labels = {}  # unsupervised mode
-        else:
-            i_label_sample = random.sample(range(len(y)), int(training_sampling * len(y)))
-            labels = {i: y[i] for i in i_label_sample}  # semi-supervised mode
-            print(labels)
+def get_selected_features_and_scores_over_n_runs(n, X, y, training_sampling):
+    supervised_accuracies = {}
+    for model_type in ['Hierarchical','KMeans','Spectral']:
+        for transform_type in ['std','minmax','robust']:
+            selected_features_dict = {}
+            accuracies_list = []
+            for i in range(n):
+                failed = True
+                while failed == True:
+                    try:
+                        y_pred, model, top_feats = train_t2f_model(X, transform_type, model_type, y, training_sampling)
+                        failed = False
+                    except:
+                        continue
 
-        # transpose from (patients, variables, timestamps) to (patients, timestamps, variables)
-        X_ts = np.transpose(X, (0, 2, 1))
+                accuracies_list += [accuracies(y_pred, y)]
+                for feat in top_feats:
+                    if feat in selected_features_dict.keys():
+                        selected_features_dict[feat] += 1
+                    else:
+                        selected_features_dict[feat] = 1
 
-        # Feature extraction
-        print("extracting features")
-        df_feats = feature_extraction(X_ts, batch_size=100, p=1)
+            averaged_accuracies = np.apply_along_axis(np.mean,0,np.array(accuracies_list))
+            supervised_accuracies[(model_type,transform_type)] = averaged_accuracies
+            print(averaged_accuracies)
+            print(selected_features_dict)
 
-        # Feature selection
-        context = {'model_type': model_type, 'transform_type': transform_type}
-        print("selecting features")
-        top_feats = feature_selection(df_feats, labels=labels, context=context)
-
-        print(top_feats)
-        for feat in top_feats:
-            if feat in selected_features_dict.keys():
-                selected_features_dict[feat] += 1
-            else:
-                selected_features_dict[feat] = 1
-        print('finished adding to dict')
-
-    return selected_features_dict
+    return supervised_accuracies
 
 

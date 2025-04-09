@@ -59,7 +59,7 @@ def add_icd_10_code_to_diagnoses(diagnoses):
 
     return
 
-def get_patient_labels(patient_ids):
+def get_patient_labels(patient_ids,diagnoses_leadii):
     """
     :param patient_ids: list of patient ids in string or int form
     :return: lists of string patient ids for any risk, cad, cvd, and pad
@@ -94,7 +94,7 @@ def get_patient_labels(patient_ids):
 
     return y
 
-def age_of_subject(subject_id):
+def age_of_subject(subject_id,patients,admissions):
     """
     returns age for a particular subject_id
     input: subject_id, int
@@ -116,7 +116,7 @@ def age_of_subject(subject_id):
     return age
 
 
-def basic_info(subject_id):
+def basic_info(subject_id,patients,admissions):
     """
     returns age and sex for a particular subject_id
     input: subject_id, int
@@ -127,11 +127,11 @@ def basic_info(subject_id):
     patient = patient.loc[patient.index.values[0]]
 
     sex = patient['GENDER']
-    age = age_of_subject(subject_id)
+    age = age_of_subject(subject_id,patients,admissions)
 
     return age, sex
 
-def check_if_died_during_admission(patient_id, datetime_str):
+def check_if_died_during_admission(patient_id, datetime_str, admissions_leadii):
     """
     :param patient_id: int, patient id
     :param datetime_str: str, datetime string from the data
@@ -151,7 +151,7 @@ def check_if_died_during_admission(patient_id, datetime_str):
 
     return False
 
-def ethnicities_for_pids(patient_ids):
+def ethnicities_for_pids(patient_ids,ethnicities_leadii):
     """
     :param patient_ids: list of ints
     :return:
@@ -179,28 +179,16 @@ def get_race(ethn):
     else:
         return 'UNKNOWN'
 
-def make_testing_dataframe(patient_ids, y_pred, y_true):
+def make_testing_dataframe(patient_ids, y_pred, y_true,patients,admissions,ethnicities_leadii):
     pids_ints = [int(pid) for pid in patient_ids]
 
-    ethnicities_for_model_patients = ethnicities_for_pids(pids_ints)
-    age_sex = np.array([basic_info(pid) for pid in pids_ints])
+    ethnicities_for_model_patients = ethnicities_for_pids(pids_ints,ethnicities_leadii)
+    age_sex = np.array([basic_info(pid,patients,admissions) for pid in pids_ints])
     age = age_sex[:,0]
     sex = age_sex[:,1]
 
     df = pd.DataFrame({'PATIENT_ID':pids_ints, 'Y_PRED':y_pred, 'Y_TRUE':y_true,
                        'ETHNICITY':ethnicities_for_model_patients, 'AGE':age, 'SEX':sex})
-    # df = pd.DataFrame({'PATIENT_ID':pids_ints, 'Y_PRED':y_pred, 'Y_TRUE':y_true, 'AGE':age, 'SEX':sex})
-
     return df
 
 
-if __name__ == '__main__':
-    patients = pd.read_csv('mimic_data/PATIENTS.csv')
-    admissions = pd.read_csv('mimic_data/ADMISSIONS.csv')
-    diagnoses = pd.read_csv('mimic_data/DIAGNOSES_ICD.csv')
-
-    admissions_leadii, patients_leadii, diagnoses_leadii = get_leadii_dataframes(patients, admissions, diagnoses)
-    ethnicities_leadii = admissions_leadii.drop_duplicates(subset='SUBJECT_ID')
-    ethnicities_leadii['ETHNICITY_COND'] = ethnicities_leadii.ETHNICITY.apply(lambda x: get_race(x))
-
-    add_icd_10_code_to_diagnoses(diagnoses_leadii)
