@@ -60,7 +60,7 @@ def get_aligned_ss_and_bp(admissions_leadii):
     of sleep stage
     :return:
     """
-    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+    data_path = "/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
 
     data_dictionary = {}
     for patient_subset in os.listdir(data_path):
@@ -149,8 +149,8 @@ def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demogra
     nan_mask = np.isnan(X).any(axis=1)
     X = X[~nan_mask]
 
-    new_patient_ids = patient_ids[~nan_mask]
-
+    #new_patient_ids = patient_ids[~nan_mask]
+    new_patient_ids = np.array(patient_ids)[~nan_mask]
     if labels:
         y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses_leadii)
         # y = y[mostly_sleep_mask]
@@ -207,12 +207,12 @@ def get_start_before_sleep(bp_ss):
         else:
             end = sleep_start + len(ss[sleep_start:])
         if np.sum(ss[sleep_start:end] == 3) / len(ss[sleep_start:end]) >= 0.5:
-            print("not sleep")
+            #print("not sleep")
             return np.array([[], [], []])
-        print(sleep_start)
+        #print(sleep_start)
     except IndexError:
         # no sleep in data
-        print("no sleep start")
+        #print("no sleep start")
         return np.array([[],[],[]])
 
     after_sleep_bp_ss = np.concatenate((sbp[sleep_start:].reshape(1,-1), dbp[sleep_start:].reshape(1,-1), ss[sleep_start:].reshape(1,-1)), axis=0)
@@ -238,13 +238,61 @@ def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min
     X = X[~nan_mask]
 
 
-    new_patient_ids = patient_ids[has_min_hours][~nan_mask]
+    #new_patient_ids = patient_ids[has_min_hours][~nan_mask]
+    new_patient_ids = np.array(patient_ids)[has_min_hours][~nan_mask]
 
     if labels:
         y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses_leadii)
         return X,y[has_min_hours][~nan_mask], new_patient_ids
     else:
         return X, new_patient_ids
+
+
+def load_preprocessing_data():
+    """
+    Loads and returns preprocessed data.
+
+    This function:
+      - Loads admissions data (filtered for lead II) via load_admissions_leadii().
+      - Loads additional DataFrames: patients and diagnoses.
+      - Scans the patient directories to obtain aligned BP/SS arrays.
+      - Computes summary statistic features (with and without demographics) and
+        uniformly padded time-series features.
+      - Produces binary risk labels using diagnoses information.
+
+    Returns:
+        Tuple: (X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts)
+    """
+    from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
+    admissions_leadii = load_admissions_leadii()
+
+    # Load the additional necessary DataFrames.
+    patients = pd.read_csv(
+        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/PATIENTS.csv')
+    admissions = pd.read_csv(
+        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv')
+    diagnoses = pd.read_csv(
+        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/DIAGNOSES_ICD.csv')
+
+    # Ensure that the diagnoses DataFrame gets the ICD10_CODE column.
+    add_icd_10_code_to_diagnoses(diagnoses)
+
+    # Scan directories for aligned BP/SS data.
+    data_dictionary = get_aligned_ss_and_bp(admissions_leadii)
+    patient_ids = [tup[0] for tup in list(data_dictionary.keys())]
+    start_before_sleep_arrays = [get_start_before_sleep(bp_ss) for bp_ss in list(data_dictionary.values())]
+
+    # Compute features.
+    # For summary features with labels, get_features() returns three items (features, labels, and patient IDs)
+    X_sum, y_sum, _ = get_features(patient_ids, start_before_sleep_arrays, True, True, False, patients, admissions,
+                                   diagnoses)
+    X_sum_dem, y_sum_dem, _ = get_features(patient_ids, start_before_sleep_arrays, True, True, True, patients,
+                                           admissions, diagnoses)
+    # For time-series features (assuming labels=True), we also expect three items or if you want only features and labels.
+    X_ts, y_ts, _ = get_features(patient_ids, start_before_sleep_arrays, False, True, False, patients, admissions,
+                                 diagnoses)
+
+    return X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
 
 
 def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics, patients, admissions, diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):
