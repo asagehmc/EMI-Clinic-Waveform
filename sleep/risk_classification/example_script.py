@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 # python script imports
 import mimic_diagnoses
@@ -26,6 +27,23 @@ mimic_diagnoses.add_icd_10_code_to_diagnoses(diagnoses_leadii)
 data_dictionary = preprocessing.get_aligned_ss_and_bp(admissions_leadii)
 patient_ids = np.array([tup[0] for tup in list(data_dictionary.keys())])
 start_before_sleep_arrays = [preprocessing.get_start_before_sleep(bp_ss) for bp_ss in list(data_dictionary.values())]
+
+start_before_sleep_arrays_bp_meaned = []
+for arr in start_before_sleep_arrays:
+    sbp = arr[0]
+    dbp = arr[1]
+    ss = arr[2]
+    try:
+        sbp_means = np.pad(np.apply_along_axis(lambda x: np.mean(x), 1, sliding_window_view(sbp, 60)), (30, 29), 'edge')
+        dbp_means = np.pad(np.apply_along_axis(lambda x: np.mean(x), 1, sliding_window_view(dbp, 60)), (30, 29), 'edge')
+    except:
+        sbp_means = sbp
+        dbp_means = dbp
+
+    arr = np.concatenate((sbp_means.reshape((1,-1)),dbp_means.reshape((1,-1)),ss.reshape((1,-1))),axis=0)
+    start_before_sleep_arrays_bp_meaned += [arr]
+
+
 print("got sleep starts")
 X_sum, y_sum, patient_ids_sum = preprocessing.get_features(patient_ids, start_before_sleep_arrays, True, True, False, patients, admissions, diagnoses_leadii, 8)
 print("sum")
@@ -34,5 +52,16 @@ print("sum dem")
 X_ts, y_ts, patient_ids_ts = preprocessing.get_features(patient_ids, start_before_sleep_arrays, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
 print("ts")
 
-# compare averages over
-models.compare_averages_summary_models(X_sum,y_sum)
+# means
+X_sum_meaned, y_sum_meaned, patient_ids_sum_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned, True, True, False, patients, admissions, diagnoses_leadii, 8)
+print("sum")
+X_sum_dem_meaned, y_sum_dem_meaned, patient_ids_sum_dem_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned, True, True, True, patients, admissions, diagnoses_leadii, 8)
+print("sum dem")
+X_ts_meaned, y_ts_meaned, patient_ids_ts_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
+print("ts")
+
+# calculate features
+X_ts_feats = models.calculate_features(X_ts)
+X_ts_meaned_feats = models.calculate_features(X_ts_meaned)
+
+supervised_accuracies, all_models_dict = models.get_selected_features_and_scores_over_n_runs(10, X_ts_feats, y_ts, 0.5)
