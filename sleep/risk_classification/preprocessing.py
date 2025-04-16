@@ -60,7 +60,7 @@ def get_aligned_ss_and_bp(admissions_leadii):
     of sleep stage
     :return:
     """
-    data_path = "/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
 
     data_dictionary = {}
     for patient_subset in os.listdir(data_path):
@@ -268,11 +268,11 @@ def load_preprocessing_data():
 
     # Load the additional necessary DataFrames.
     patients = pd.read_csv(
-        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/PATIENTS.csv')
+        '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/PATIENTS.csv')
     admissions = pd.read_csv(
-        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv')
+        '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv')
     diagnoses = pd.read_csv(
-        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/DIAGNOSES_ICD.csv')
+        '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/DIAGNOSES_ICD.csv')
 
     # Ensure that the diagnoses DataFrame gets the ICD10_CODE column.
     add_icd_10_code_to_diagnoses(diagnoses)
