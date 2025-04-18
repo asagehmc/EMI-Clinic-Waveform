@@ -7,7 +7,7 @@ from pandas.errors import InvalidIndexError
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import cross_validate, train_test_split, GridSearchCV
+from sklearn.model_selection import cross_validate, train_test_split, GridSearchCV, RepeatedStratifiedKFold
 
 # Import SMOTE, BorderlineSMOTE, and Pipeline from imblearn for oversampling based on class imbalance
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
@@ -493,78 +493,78 @@ if __name__ == "__main__":
     from preprocessing import load_preprocessing_data, load_full_data, load_bp_only_data
     from models import cross_validate_summary_model, cross_validate_summary_model_with_smote
 
-    # Load summary and time-series data
-    X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts = load_preprocessing_data()
-
-    # Incorporate the imbalance check for y_sum
-    unique, counts = np.unique(y_sum, return_counts=True)
-    total_samples = len(y_sum)
-    print("Class distribution in y_sum:")
-    for label, count in zip(unique, counts):
-        percentage = count / total_samples * 100
-        print(f"Class {label}: {count} samples ({percentage:.2f}%)")
-    if len(counts) == 2:
-        imbalance_ratio = max(counts) / min(counts)
-        print(f"Imbalance ratio (majority / minority): {imbalance_ratio:.2f}")
-
-    # Applying SMOTE to the summary data (X_sum, y_sum)
-    oversampler = get_oversampler('smote')
-    X_sum_res, y_sum_res = oversampler.fit_resample(X_sum, y_sum)
-
-    # Printing the class distribution and imbalance ratio after SMOTE is applied
-    unique_res, counts_res = np.unique(y_sum_res, return_counts=True)
-    total_samples_res = len(y_sum_res)
-    print("\nClass distribution in y_sum after SMOTE:")
-    for label, count in zip(unique_res, counts_res):
-        percentage = count / total_samples_res * 100
-        print(f"Class {label}: {count} samples ({percentage:.2f}%)")
-    if len(counts_res) == 2:
-        imbalance_ratio_res = max(counts_res) / min(counts_res)
-        print(f"Imbalance ratio (majority / minority) after SMOTE: {imbalance_ratio_res:.2f}")
-
-
-    # Varied additional oversampling to see impacts on RFC + SMOTE accuracies
-    extras = [15, 20, 25, 30]  # extra oversampling numbers
-
-    X_full, y_full, *rest = load_full_data()  # returns X, y, X_dem, y_dem, X_ts, y_ts
-
-    print("\n>>> RFC Baselines <<<")
-    # Just RFC, no oversampling
-    cv_plain = cross_validate_summary_model(X_full, y_full, model_type="rfc")
-    mean_plain = np.mean(cv_plain["test_score"]) * 100
-    std_plain = np.std(cv_plain["test_score"]) * 100
-    print(f"RFC (no oversampling)      → Mean CV acc: {mean_plain:5.2f}%  ± {std_plain:4.2f}%")
-
-    # RFC + SMOTE without additional oversampling
-    cv_sm = cross_validate_summary_model_with_smote(
-        X_full, y_full,
-        model_type="rfc",
-        oversampling_method="smote"
-    )
-    mean_sm = np.mean(cv_sm["test_score"]) * 100
-    std_sm = np.std(cv_sm["test_score"]) * 100
-    print(f"RFC + SMOTE (default)      → Mean CV acc: {mean_sm:5.2f}%  ± {std_sm:4.2f}%")
-
-    print("\n>>> RFC + SMOTE: extra synthetic samples per class <<<")
-    # get the original counts per class once
-    orig_counts = np.bincount(y_full.astype(int))
-    majority = orig_counts.max()
-
-    for e in extras:
-        # balance both classes to (majority + e)
-        target_n = majority + e
-        sampling_strategy = {0: target_n, 1: target_n}
-
-        cv = cross_validate_summary_model_with_smote(
-            X_full, y_full,
-            model_type="rfc",
-            oversampling_method="smote",
-            sampling_strategy=sampling_strategy
-        )
-
-        mean_acc = np.mean(cv["test_score"]) * 100
-        std_acc = np.std(cv["test_score"]) * 100
-        print(f"+{e:2d} samples →  Mean CV acc: {mean_acc:5.2f}%  ± {std_acc:4.2f}%")
+    # # Load summary and time-series data
+    # X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts = load_preprocessing_data()
+    #
+    # # Incorporate the imbalance check for y_sum
+    # unique, counts = np.unique(y_sum, return_counts=True)
+    # total_samples = len(y_sum)
+    # print("Class distribution in y_sum:")
+    # for label, count in zip(unique, counts):
+    #     percentage = count / total_samples * 100
+    #     print(f"Class {label}: {count} samples ({percentage:.2f}%)")
+    # if len(counts) == 2:
+    #     imbalance_ratio = max(counts) / min(counts)
+    #     print(f"Imbalance ratio (majority / minority): {imbalance_ratio:.2f}")
+    #
+    # # Applying SMOTE to the summary data (X_sum, y_sum)
+    # oversampler = get_oversampler('smote')
+    # X_sum_res, y_sum_res = oversampler.fit_resample(X_sum, y_sum)
+    #
+    # # Printing the class distribution and imbalance ratio after SMOTE is applied
+    # unique_res, counts_res = np.unique(y_sum_res, return_counts=True)
+    # total_samples_res = len(y_sum_res)
+    # print("\nClass distribution in y_sum after SMOTE:")
+    # for label, count in zip(unique_res, counts_res):
+    #     percentage = count / total_samples_res * 100
+    #     print(f"Class {label}: {count} samples ({percentage:.2f}%)")
+    # if len(counts_res) == 2:
+    #     imbalance_ratio_res = max(counts_res) / min(counts_res)
+    #     print(f"Imbalance ratio (majority / minority) after SMOTE: {imbalance_ratio_res:.2f}")
+    #
+    #
+    # # Varied additional oversampling to see impacts on RFC + SMOTE accuracies
+    # extras = [15, 20, 25, 30]  # extra oversampling numbers
+    #
+    # X_full, y_full, *rest = load_full_data()  # returns X, y, X_dem, y_dem, X_ts, y_ts
+    #
+    # print("\n>>> RFC Baselines <<<")
+    # # Just RFC, no oversampling
+    # cv_plain = cross_validate_summary_model(X_full, y_full, model_type="rfc")
+    # mean_plain = np.mean(cv_plain["test_score"]) * 100
+    # std_plain = np.std(cv_plain["test_score"]) * 100
+    # print(f"RFC (no oversampling)      → Mean CV acc: {mean_plain:5.2f}%  ± {std_plain:4.2f}%")
+    #
+    # # RFC + SMOTE without additional oversampling
+    # cv_sm = cross_validate_summary_model_with_smote(
+    #     X_full, y_full,
+    #     model_type="rfc",
+    #     oversampling_method="smote"
+    # )
+    # mean_sm = np.mean(cv_sm["test_score"]) * 100
+    # std_sm = np.std(cv_sm["test_score"]) * 100
+    # print(f"RFC + SMOTE (default)      → Mean CV acc: {mean_sm:5.2f}%  ± {std_sm:4.2f}%")
+    #
+    # print("\n>>> RFC + SMOTE: extra synthetic samples per class <<<")
+    # # get the original counts per class once
+    # orig_counts = np.bincount(y_full.astype(int))
+    # majority = orig_counts.max()
+    #
+    # for e in extras:
+    #     # balance both classes to (majority + e)
+    #     target_n = majority + e
+    #     sampling_strategy = {0: target_n, 1: target_n}
+    #
+    #     cv = cross_validate_summary_model_with_smote(
+    #         X_full, y_full,
+    #         model_type="rfc",
+    #         oversampling_method="smote",
+    #         sampling_strategy=sampling_strategy
+    #     )
+    #
+    #     mean_acc = np.mean(cv["test_score"]) * 100
+    #     std_acc = np.std(cv["test_score"]) * 100
+    #     print(f"+{e:2d} samples →  Mean CV acc: {mean_acc:5.2f}%  ± {std_acc:4.2f}%")
 
     #
     # # Comparing SMOTE vs. Borderline-SMOTE for RFC
@@ -595,78 +595,83 @@ if __name__ == "__main__":
     # print("Final Averaged Supervised Clustering Accuracies:")
     # print(sup_accuracies)
 
-    # # Comparing Accuracies for just using BP versus using BP + Sleep Stage Inputs
-    # scenarios = [
-    #     ("BP + Sleep Stages", load_full_data),
-    #     ("BP Only", load_bp_only_data)
-    # ]
-    #
-    # def get_X_y(loader):
-    #     vals = loader()
-    #     # full loader returns 6 values, bp-only returns 2
-    #     X, y = vals[0], vals[1]
-    #     return X, y
-    #
-    # # Boxplot comparing all three classifiers (SVC, RFC, KNC) (with SS + BP versus just BP)
-    # models = ["svc", "rfc", "knc"]
-    # fig1, ax1 = plt.subplots(figsize=(8, 4))
-    # box_data = []
-    # labels1 = []
-    #
-    # for scen_name, loader in scenarios:
-    #     X, y = get_X_y(loader)
-    #     for m in models:
-    #         cv = cross_validate_summary_model(X, y, m)
-    #         box_data.append(cv["test_score"] * 100)
-    #         labels1.append(f"{m.upper()}\n({scen_name})")
-    #
-    # ax1.boxplot(box_data, labels=labels1, patch_artist=True, showfliers=False)
-    # ax1.set_title("CV Accuracies for SVC / RFC / KNC")
-    # ax1.set_ylabel("Accuracy (%)")
-    # ax1.grid(axis="y", linestyle="--", alpha=0.7)
-    # plt.xticks(rotation=30, ha="right")
-    # plt.tight_layout()
-    #
-    # # Boxplot comparing RF and SMOTE (with SS + BP versus just BP)
-    # fig2, ax2 = plt.subplots(figsize=(6, 4))
-    # box_data_sm = []
-    # labels2 = []
-    #
-    # for scen_name, loader in scenarios:
-    #     X, y = get_X_y(loader)
-    #     cv = cross_validate_summary_model_with_smote(
-    #         X, y,
-    #         model_type="rfc",
-    #         oversampling_method="smote"
-    #     )
-    #     box_data_sm.append(cv["test_score"] * 100)
-    #     labels2.append(scen_name)
-    #
-    # ax2.boxplot(box_data_sm, labels=labels2, patch_artist=True, showfliers=False)
-    # ax2.set_title("RFC + SMOTE CV Accuracies")
-    # ax2.set_ylabel("Accuracy (%)")
-    # ax2.grid(axis="y", linestyle="--", alpha=0.7)
-    # plt.tight_layout()
-    #
-    # # Boxplot comparing RF and Borderline‑SMOTE (with SS + BP versus just BP)
-    # fig3, ax3 = plt.subplots(figsize=(6, 4))
-    # box_data_bl = []
-    # labels3 = []
-    #
-    # for scen_name, loader in scenarios:
-    #     X, y = get_X_y(loader)
-    #     cv = cross_validate_summary_model_with_smote(
-    #         X, y,
-    #         model_type="rfc",
-    #         oversampling_method="borderline_smote"
-    #     )
-    #     box_data_bl.append(cv["test_score"] * 100)
-    #     labels3.append(scen_name)
-    #
-    # ax3.boxplot(box_data_bl, labels=labels3, patch_artist=True, showfliers=False)
-    # ax3.set_title("RFC + Borderline‑SMOTE CV Accuracies")
-    # ax3.set_ylabel("Accuracy (%)")
-    # ax3.grid(axis="y", linestyle="--", alpha=0.7)
-    # plt.tight_layout()
-    #
-    # plt.show()
+    # Comparing Accuracies for just using BP versus using BP + Sleep Stage Inputs
+
+    rkf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
+
+
+    def get_X_y(loader):
+        vals = loader()
+        return vals[0], vals[1]
+
+
+    models = {
+        "SVC": SVC(),
+        "RFC": RandomForestClassifier(),
+        "KNC": KNeighborsClassifier()
+    }
+
+    scenarios = [
+        ("BP + Sleep Stages", load_full_data),
+        ("BP Only", load_bp_only_data)
+    ]
+
+    # Boxplot comparing all three classifiers (SVC, RFC, KNC)
+    fig1, ax1 = plt.subplots(figsize=(8, 4))
+    box_data, labels1 = [], []
+
+    for scen_name, loader in scenarios:
+        X, y = get_X_y(loader)
+        for name, clf in models.items():
+            scores = cross_validate(clf, X, y, cv=rkf, scoring="accuracy", n_jobs=-1)["test_score"] * 100
+            mean, std = scores.mean(), scores.std()
+            print(f"{name} ({scen_name}):  Mean = {mean:.2f}%  ± {std:.2f}%")
+            box_data.append(scores)
+            labels1.append(f"{name}\n({scen_name})")
+
+    ax1.boxplot(box_data, labels=labels1, patch_artist=True, showfliers=False)
+    ax1.set_title("50×5‑Fold CV Accuracies: SVC / RFC / KNC")
+    ax1.set_ylabel("Accuracy (%)")
+    ax1.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+
+    # Boxplot comparing RFC + SMOTE
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    box_data_sm, labels2 = [], []
+
+    for scen_name, loader in scenarios:
+        X, y = get_X_y(loader)
+        pipe = Pipeline([("smote", SMOTE(random_state=42)), ("rfc", RandomForestClassifier())])
+        scores = cross_validate(pipe, X, y, cv=rkf, scoring="accuracy", n_jobs=-1)["test_score"] * 100
+        mean, std = scores.mean(), scores.std()
+        print(f"RFC+SMOTE ({scen_name}):  Mean = {mean:.2f}%  ± {std:.2f}%")
+        box_data_sm.append(scores)
+        labels2.append(scen_name)
+
+    ax2.boxplot(box_data_sm, labels=labels2, patch_artist=True, showfliers=False)
+    ax2.set_title("50×5‑Fold CV: RFC + SMOTE")
+    ax2.set_ylabel("Accuracy (%)")
+    ax2.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.tight_layout()
+
+    # Boxplot comparing RFC + Borderline‑SMOTE
+    fig3, ax3 = plt.subplots(figsize=(6, 4))
+    box_data_bl, labels3 = [], []
+
+    for scen_name, loader in scenarios:
+        X, y = get_X_y(loader)
+        pipe = Pipeline([("smote", BorderlineSMOTE(random_state=42)), ("rfc", RandomForestClassifier())])
+        scores = cross_validate(pipe, X, y, cv=rkf, scoring="accuracy", n_jobs=-1)["test_score"] * 100
+        mean, std = scores.mean(), scores.std()
+        print(f"RFC+Borderline‑SMOTE ({scen_name}):  Mean = {mean:.2f}%  ± {std:.2f}%")
+        box_data_bl.append(scores)
+        labels3.append(scen_name)
+
+    ax3.boxplot(box_data_bl, labels=labels3, patch_artist=True, showfliers=False)
+    ax3.set_title("50×5‑Fold CV: RFC + Borderline‑SMOTE")
+    ax3.set_ylabel("Accuracy (%)")
+    ax3.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.tight_layout()
+
+    plt.show()
