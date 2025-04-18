@@ -7,7 +7,7 @@ def load_admissions_leadii():
     """
     Loads the admissions data for lead II patients
     """
-    admissions_file = '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv'
+    admissions_file = '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv'
     admissions = pd.read_csv(admissions_file)
     return admissions
 
@@ -18,7 +18,7 @@ def get_leadii_dataframes(patients,admissions,diagnoses):
     :param diagnoses: diagnoses pd df
     :return: subset of each pd df with ecg lead ii data
     """
-    with open('/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/filtered_ABP_II.txt', 'r') as file:
+    with open('/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/filtered_ABP_II.txt', 'r') as file:
         python_dict_from_file = json.load(file)
     leadii_sub_ids = [int(x.split('/')[1][1:]) for x in python_dict_from_file.keys()]
 
