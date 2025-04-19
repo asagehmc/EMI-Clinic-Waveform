@@ -9,9 +9,11 @@ import pandas as pd
 import importlib
 
 import mimic_diagnoses
+
 importlib.reload(mimic_diagnoses)
 
-def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id,admissions_leadii):
+
+def get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id, admissions_leadii, include_start_time=False):
     """
     :param patient_data_path: str, path to patient data
     :param patient_id: str, patient id
@@ -52,24 +54,30 @@ def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id,admissions_l
 
         bp_ss = np.concatenate((sbp.reshape((1, -1)), dbp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
 
+    start_time = patient_data['date'][11:13]
+
+    if include_start_time:
+        return [bp_ss, start_time]
     return bp_ss
 
-def get_aligned_ss_and_bp(admissions_leadii):
+
+def get_aligned_ss_and_bp(admissions_leadii, include_start_time=False):
     """
     for each patient, gets the aligned SS and BP by taking the highest probability
     of sleep stage
     :return:
     """
-    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+    data_path = "/Users/luismendoza/Desktop/CS/HMC CS/Clinic/EIT-Clinic-Waveform/sleep/data/fixed_patients"
 
     data_dictionary = {}
+    start_times = []
     for patient_subset in os.listdir(data_path):
         subset_path = os.path.join(data_path, patient_subset)
         if not os.path.isdir(subset_path):
             continue
         for patient in os.listdir(subset_path):
             patient_path = os.path.join(subset_path, patient)
-            if not os.path.isdir(patient_path) or patient[0]!='p':
+            if not os.path.isdir(patient_path) or patient[0] != 'p':
                 continue
             patient_id = patient.split('p')[1]
 
@@ -77,16 +85,31 @@ def get_aligned_ss_and_bp(admissions_leadii):
             for ts in os.listdir(patient_path):
                 patient_data_path = os.path.join(patient_path, ts)
 
-                bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id, admissions_leadii)
-                if len(bp_ss) == 0:
-                    continue
+                if include_start_time:
+                    info = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id, admissions_leadii,
+                                                              include_start_time)
+                    if len(info) == 0:
+                        continue
+                    else:
+                        bp_ss = info[0]
+                        start_time = info[1]
+                        data_dictionary[(patient_id, i)] = bp_ss
+                        start_times.append(start_time)
+                        i += 1
                 else:
-                    data_dictionary[(patient_id,i)] = bp_ss
-                    i += 1
+                    bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id, admissions_leadii)
+                    if len(bp_ss) == 0:
+                        continue
+                    else:
+                        data_dictionary[(patient_id, i)] = bp_s
+                        i += 1
 
+    if include_start_time:
+        return data_dictionary, start_times
     return data_dictionary
 
-def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hours,patients,admissions):
+
+def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hours, patients, admissions):
     """
     returns summary statistics features for one instance
     :param bp_ss:  2d np array [[bp values],[ss values]]
@@ -94,11 +117,11 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
     :param patient_id:
     :return:
     """
-    if len(bp_ss[0]) < min_num_hours*60*2:
+    if len(bp_ss[0]) < min_num_hours * 60 * 2:
         if demographics:
-            return np.array([np.nan, np.nan, np.nan, np.nan,np.nan,np.nan,np.nan,np.nan])
+            return np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])
         else:
-            return np.array([np.nan,np.nan,np.nan,np.nan,np.nan,np.nan])
+            return np.array([np.nan, np.nan, np.nan, np.nan, np.nan, np.nan])
 
     sbp = bp_ss[0]
     dbp = bp_ss[1]
@@ -107,7 +130,6 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
     sbp_mean = float(np.nanmean(sbp))
     dbp_mean = float(np.nanmean(dbp))
     bp_range = int(np.nanmax(sbp) - np.nanmin(sbp))
-
 
     uniques, counts = np.unique(ss, return_counts=True)
     percentages = dict(zip(uniques, counts / len(ss)))
@@ -125,7 +147,7 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
         ss_3 = 0
 
     if demographics:
-        age, sex = mimic_diagnoses.basic_info(int(patient_id),patients,admissions)
+        age, sex = mimic_diagnoses.basic_info(int(patient_id), patients, admissions)
         if 'F' in sex:
             sex = 0
         else:
@@ -135,7 +157,8 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
         return np.array([sbp_mean, dbp_mean, bp_range, ss_1, ss_2, ss_3])
 
 
-def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours,patients,admissions, diagnoses_leadii):
+def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours, patients,
+                         admissions, diagnoses_leadii):
     """
     gets summary statistics features for all data
     :param data_dictionary: str patient_ids keys and 2d np array [[bp values],[ss values]] values
@@ -143,19 +166,21 @@ def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demogra
     :param demographics: bool if getting demographics or not
     :return:
     """
-    X = np.array([get_summary_stats_for_instance(bp_ss,demographics,id,min_num_hours,patients,admissions) for id,bp_ss in zip(patient_ids,start_before_sleep_arrays)])
+    X = np.array(
+        [get_summary_stats_for_instance(bp_ss, demographics, id, min_num_hours, patients, admissions) for id, bp_ss in
+         zip(patient_ids, start_before_sleep_arrays)])
     # mostly_sleep_mask = X[:, 4] != 1
     # X = X[mostly_sleep_mask]
     nan_mask = np.isnan(X).any(axis=1)
     X = X[~nan_mask]
 
-    #new_patient_ids = patient_ids[~nan_mask]
+    # new_patient_ids = patient_ids[~nan_mask]
     new_patient_ids = np.array(patient_ids)[~nan_mask]
     if labels:
-        y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses_leadii)
+        y = mimic_diagnoses.get_patient_labels(patient_ids, diagnoses_leadii)
         # y = y[mostly_sleep_mask]
         y = y[~nan_mask]
-        return X,y, new_patient_ids
+        return X, y, new_patient_ids
     else:
         return X, new_patient_ids
 
@@ -178,13 +203,17 @@ def pad_list_of_arrays(list_of_arrays, max_length, padding_value=0):
         A numpy array containing the padded arrays.
     """
     padded_arrays = [
-        np.pad(arr, ((0,0),(0,max_length-arr.shape[1])), 'constant', constant_values=padding_value) if max_length-arr.shape[1] >=0 else arr[:,:max_length]
+        np.pad(arr, ((0, 0), (0, max_length - arr.shape[1])), 'constant', constant_values=padding_value) if max_length -
+                                                                                                            arr.shape[
+                                                                                                                1] >= 0 else arr[
+                                                                                                                             :,
+                                                                                                                             :max_length]
         for arr in list_of_arrays
     ]
     return np.array(padded_arrays)
 
 
-def get_start_before_sleep(bp_ss):
+def get_start_before_sleep(bp_ss, include_sleep_start=False):
     """
     gets sleep start time and then returns arrays values starting then
     :param bp_ss:
@@ -194,33 +223,41 @@ def get_start_before_sleep(bp_ss):
     dbp = bp_ss[1]
     ss = bp_ss[2]
 
-
-    rolling_mode = np.pad(np.apply_along_axis(lambda x: stats.mode(x)[0], 1, sliding_window_view(ss, 30)),(15,14) , 'edge')
+    rolling_mode = np.pad(np.apply_along_axis(lambda x: stats.mode(x)[0], 1, sliding_window_view(ss, 30)), (15, 14),
+                          'edge')
 
     # TODO TAKE ROLLING MEANS
     # np.pad(np.apply_along_axis(lambda x: np.mean(x), 1, sliding_window_view(bp, 60)), (30, 29), 'edge')
 
     try:
-        sleep_start = np.where(rolling_mode!=3)[0][0] - 15
-        if len(ss[sleep_start:])>=8*60*2:
-            end = sleep_start+8*60*2
+        sleep_start = np.where(rolling_mode != 3)[0][0] - 15
+        if len(ss[sleep_start:]) >= 8 * 60 * 2:
+            end = sleep_start + 8 * 60 * 2
         else:
             end = sleep_start + len(ss[sleep_start:])
         if np.sum(ss[sleep_start:end] == 3) / len(ss[sleep_start:end]) >= 0.5:
-            #print("not sleep")
+            # print("not sleep")
+            if include_sleep_start:
+                return np.array([[], [], []]), -1
             return np.array([[], [], []])
-        #print(sleep_start)
+        # print(sleep_start)
     except IndexError:
         # no sleep in data
-        #print("no sleep start")
-        return np.array([[],[],[]])
+        # print("no sleep start")
+        if include_sleep_start:
+            return np.array([[], [], []]), -1
+        return np.array([[], [], []])
 
-    after_sleep_bp_ss = np.concatenate((sbp[sleep_start:].reshape(1,-1), dbp[sleep_start:].reshape(1,-1), ss[sleep_start:].reshape(1,-1)), axis=0)
+    after_sleep_bp_ss = np.concatenate(
+        (sbp[sleep_start:].reshape(1, -1), dbp[sleep_start:].reshape(1, -1), ss[sleep_start:].reshape(1, -1)), axis=0)
 
+    if include_sleep_start:
+        return after_sleep_bp_ss, sleep_start
     return after_sleep_bp_ss
 
 
-def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii):
+def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,
+                             diagnoses_leadii):
     """
     gets time series features for all data
     :param data_dictionary:
@@ -228,22 +265,24 @@ def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min
     :return:
     """
 
-    has_min_hours = np.array([len(arr[0]) for arr in start_before_sleep_arrays]) > min_num_hours*60*2
+    has_min_hours = np.array([len(arr[0]) for arr in start_before_sleep_arrays]) > min_num_hours * 60 * 2
+
+    print(has_min_hours)
 
     # zero pad / cut off for a minimum hour block
-    X = pad_list_of_arrays(start_before_sleep_arrays, fixed_block_hours*60*2)
+    X = pad_list_of_arrays(start_before_sleep_arrays, fixed_block_hours * 60 * 2)
     X = X[has_min_hours]
+    print(X)
 
-    nan_mask = np.isnan(X).any(axis=(1,2))
+    nan_mask = np.isnan(X).any(axis=(1, 2))
     X = X[~nan_mask]
 
-
-    #new_patient_ids = patient_ids[has_min_hours][~nan_mask]
+    # new_patient_ids = patient_ids[has_min_hours][~nan_mask]
     new_patient_ids = np.array(patient_ids)[has_min_hours][~nan_mask]
 
     if labels:
-        y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses_leadii)
-        return X,y[has_min_hours][~nan_mask], new_patient_ids
+        y = mimic_diagnoses.get_patient_labels(patient_ids, diagnoses_leadii)
+        return X, y[has_min_hours][~nan_mask], new_patient_ids
     else:
         return X, new_patient_ids
 
@@ -295,7 +334,8 @@ def load_preprocessing_data():
     return X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
 
 
-def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics, patients, admissions, diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):
+def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics, patients, admissions,
+                 diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):
     """
     gets features for all data
     :param data_dictionary:
@@ -305,9 +345,11 @@ def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demogr
     :return:
     """
     if summary:
-        features = get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours, patients, admissions,diagnoses_leadii)
+        features = get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours,
+                                        patients, admissions, diagnoses_leadii)
     else:
-        features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii)
+        features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours,
+                                            fixed_block_hours, diagnoses_leadii)
 
     if labels:
         # features, labels, corresponding patient ids
