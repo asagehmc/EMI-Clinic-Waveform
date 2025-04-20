@@ -9,7 +9,7 @@
 PPGtoBP/mesa/polysomnography/*
 /PPGtoBP/PPG_model/bloodPressureModel/models/RefinementNetwork.h5
 /PPGtoBP/PPG_model/bloodPressureModel/models/ApproximateNetwork.h5
-
+/PPGtoBP/token.txt
 
 # User-specific stuff
 .idea/
