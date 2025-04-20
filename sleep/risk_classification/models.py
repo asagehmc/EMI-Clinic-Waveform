@@ -68,6 +68,15 @@ def cross_validate_summary_model_with_smote(X, y, model_type, smote_sampling=1.0
     return cross_validate(pipe, X, y, cv=5, scoring="accuracy")
 
 
+def score_rf_and_probability(X, y, test_size=0.2):
+    model = RandomForestClassifier()
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)
+    return model, y_pred, y_prob, y_test, X_test
+
 def score_summary_model(X, y, model_type, test_size=0.2):
     """
     Splits the data into training and test sets, trains the chosen model, and computes accuracy metrics.
@@ -340,14 +349,18 @@ def compare_averages_summary_models(X, y):
     :param X: Feature matrix.
     :param y: Labels.
     """
-    for model_type in ["svc", "rfc", "knc"]:
+    # for model_type in ["svc", "rfc", "knc"]:
+    for model_type in ["rfc"]:
         acc_list = []
         for _ in range(50):
             scores = score_summary_model(X, y, model_type)
             print(scores)
             acc_list.append(scores)
         avg_acc = np.mean(np.array(acc_list), axis=0)
+        avg_std = np.std(np.array(acc_list), axis=0)
         print(f"{model_type} averaged summary accuracies: {avg_acc}")
+        print(f"{model_type} has standard devation of accuracies: {avg_std}")
+        return acc_list, avg_acc
 
 
 def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_sampling):
@@ -389,42 +402,3 @@ def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_samplin
             print("Feature selection counts:", selected_features_dict)
     return supervised_accuracies, all_models_dict
 
-
-# # Loading Data & Comparing Models
-# if __name__ == "__main__":
-#     from preprocessing import load_preprocessing_data
-#
-#     # Load summary and time-series data
-#     X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts = load_preprocessing_data()
-#
-#     # Incorporate the imbalance check for y_sum
-#     unique, counts = np.unique(y_sum, return_counts=True)
-#     total_samples = len(y_sum)
-#     print("Class distribution in y_sum:")
-#     for label, count in zip(unique, counts):
-#         percentage = count / total_samples * 100
-#         print(f"Class {label}: {count} samples ({percentage:.2f}%)")
-#     if len(counts) == 2:
-#         imbalance_ratio = max(counts) / min(counts)
-#         print(f"Imbalance ratio (majority / minority): {imbalance_ratio:.2f}")
-#
-#     print(">>> Summary Models Comparison (Non-Demographic vs. Demographic) <<<")
-#     compare_summary_models(X_sum, y_sum, X_sum_dem, y_sum_dem)
-#
-#     print("\n>>> Averaged Summary Models Accuracies <<<")
-#     compare_averages_summary_models(X_sum, y_sum)
-#
-#     print("\n>>> SMOTE-Based Supervised Model Evaluation <<<")
-#     for model in ["svc", "rfc", "knc"]:
-#         smote_acc = score_summary_model_with_smote(X_sum, y_sum, model, test_size=0.2, smote_sampling=1.0)
-#         print(f"SMOTE {model} accuracies: {smote_acc}")
-#
-#     print("\n>>> Averaged Unsupervised Clustering Accuracies <<<")
-#     unsup_accuracies = compare_averaged_unsupervised_clustering(X_ts, y_ts, num_runs=10)
-#     print("Final Averaged Unsupervised Clustering Accuracies:")
-#     print(unsup_accuracies)
-#
-#     print("\n>>> Averaged Supervised (Semi-supervised) Clustering Accuracies <<<")
-#     sup_accuracies = compare_averaged_supervised_clustering(X_ts, y_ts, training_sampling=0.2, num_runs=10)
-#     print("Final Averaged Supervised Clustering Accuracies:")
-#     print(sup_accuracies)
