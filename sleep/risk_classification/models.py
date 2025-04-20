@@ -13,12 +13,12 @@ from sklearn.model_selection import cross_validate, train_test_split, GridSearch
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.pipeline import Pipeline
 
-# SKETCHY DIRECTORY SOLUTION --> need to fix
-os.chdir("/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
+# SKETCHY DIRECTORY SOLUTION
+os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
 from time2feat.t2f.extraction.extractor import feature_extraction
 from time2feat.t2f.utils.importance_old import feature_selection
 from time2feat.t2f.model.clustering import ClusterWrapper
-os.chdir("/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
+os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
 
 
 # Standard Supervised Models: Cross-Validation & Test Set Scoring
@@ -81,6 +81,15 @@ def cross_validate_summary_model_with_smote(X, y, model_type, oversampling_metho
     ])
     return cross_validate(pipe, X, y, cv=5, scoring="accuracy")
 
+
+def score_rf_and_probability(X, y, test_size=0.2):
+    model = RandomForestClassifier()
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)
+    return model, y_pred, y_prob, y_test, X_test
 
 def optimize_rfc_with_smote(X, y, cv=5, scoring="accuracy", oversampling_method="smote"):
     """
@@ -445,7 +454,10 @@ def compare_averages_summary_models(X, y):
             print(scores)
             acc_list.append(scores)
         avg_acc = np.mean(np.array(acc_list), axis=0)
+        avg_std = np.std(np.array(acc_list), axis=0)
         print(f"{model_type} averaged summary accuracies: {avg_acc}")
+        print(f"{model_type} has standard devation of accuracies: {avg_std}")
+        return acc_list, avg_acc
 
 def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_sampling):
     """
