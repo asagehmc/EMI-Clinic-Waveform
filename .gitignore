@@ -7,6 +7,9 @@
 
 # downloaded edfs:
 PPGtoBP/mesa/polysomnography/*
+/PPGtoBP/PPG_model/bloodPressureModel/models/RefinementNetwork.h5
+/PPGtoBP/PPG_model/bloodPressureModel/models/ApproximateNetwork.h5
+
 
 # User-specific stuff
 .idea/
@@ -118,4 +121,3 @@ fabric.properties
 # https://plugins.jetbrains.com/plugin/8053-azure-toolkit-for-intellij
 .idea/**/azureSettings.xml
 
-# End of https://www.toptal.com/developers/gitignore/api/pycharm
