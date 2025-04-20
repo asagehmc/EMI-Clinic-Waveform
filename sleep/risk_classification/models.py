@@ -423,6 +423,7 @@ def compare_averaged_supervised_clustering(X_feats, y, training_sampling, num_ru
                 print(f"{model_type}, {transform_type} averaged supervised accuracies: {avg_acc}")
     return supervised_accuracies
 
+
 def compare_summary_models(X1, y1, X2, y2):
     """
     Compares summary models (SVC, RFC, KNC) on two different datasets.
