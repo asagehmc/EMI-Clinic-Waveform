@@ -19,6 +19,7 @@ def get_data_for_patient(id, nsrr_path="nsrr"):
     f = pyedflib.EdfReader(f"mesa/polysomnography/edfs/mesa-sleep-{id:04}.edf")
     signal_labels = f.getSignalLabels()
     ppg_signal = f.readSignal(signal_labels.index("Pleth"))
+    ppg_freq = f.getSampleFrequency(signal_labels.index("Pleth"))
 
     # read the sleep annotations
     with open(annotations_path, 'r', encoding='utf-8') as f:
@@ -32,15 +33,16 @@ def get_data_for_patient(id, nsrr_path="nsrr"):
 
     return {
         "ppg": ppg_signal,
+        "ppg_freq": int(ppg_freq),
         "ss": ss_epochs.tolist(),
         "patient_data": patient_data
     }
 
 
 def get_ith_patient_data(patient_id):
-    ints = ["race1c", "gender1", "sleepage5c"]  # Removed nsrr_age_gt89 from ints
+    ints = ["race1c", "gender1", "sleepage5c"]
     floats = ["htcm5", "wtlb5", "bmi5c", "nsrr_ahi_hp3r_aasm15"]
-    strings = ["nsrr_age_gt89"]  # Added nsrr_age_gt89 to strings
+    strings = ["nsrr_age_gt89"]
     keys_to_keep = ints + floats + strings
 
     with open("mesa-sleep-dataset-0.7.0.csv", 'r') as file:
@@ -83,7 +85,6 @@ def download_data(path, nsrr_exe):
             capture_output=True,
             text=True
         )
-        print(result.stdout)
         # super janky way to do this, but works for now.
         if "1 file downloaded" in result.stdout:
             print(f"Successfully downloaded file {path}!")
@@ -102,7 +103,7 @@ def annotation_to_ss_epochs(annotations):
     ]
 
     # Determine how long the recording is
-    end_time = max((a[0] + a[1]) for a in processed_annots)
+    end_time = max(a[1] for a in processed_annots)
     n_epochs = floor(end_time / 30)
 
     # Initialize all epochs to 0
