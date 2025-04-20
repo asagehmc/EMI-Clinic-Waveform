@@ -8,12 +8,12 @@ import pyedflib
 import xmltodict
 
 
-def get_data_for_patient(id):
+def get_data_for_patient(id, nsrr_path="nsrr"):
     signals_path = f"mesa/polysomnography/edfs/mesa-sleep-{id:04}.edf"
     annotations_path = f"mesa/polysomnography/annotations-events-nsrr/mesa-sleep-{id:04}-nsrr.xml"
 
-    download_data(signals_path)
-    download_data(annotations_path)
+    download_data(signals_path, nsrr_path)
+    download_data(annotations_path, nsrr_path)
 
     # read the pleth signal
     f = pyedflib.EdfReader(f"mesa/polysomnography/edfs/mesa-sleep-{id:04}.edf")
@@ -73,15 +73,17 @@ def get_ith_patient_data(patient_id):
     return None
 
 
-def download_data(path):
+def download_data(path, nsrr_exe):
     if not os.path.exists(path):
         with open("token.txt", "r") as f:
             nsrr_token = f.readline().strip()
+
         result = subprocess.run(
-            ["nsrr", "download", path, f"--token={nsrr_token}"],
+            [nsrr_exe, "download", path, f"--token={nsrr_token}"],
             capture_output=True,
             text=True
         )
+        print(result.stdout)
         # super janky way to do this, but works for now.
         if "1 file downloaded" in result.stdout:
             print(f"Successfully downloaded file {path}!")

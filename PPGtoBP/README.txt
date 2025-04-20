@@ -8,7 +8,6 @@ Place these files in the directory PPGtoBP/PPG_model/bloodPressureModel/models
 
 --------------------------------------------------
 
-
 To install the ruby gem for nsrr (on mac):
 
 brew install rbenv ruby-build
@@ -31,3 +30,10 @@ token which can be accessed by logging in at
 Place this file in the PPGtoBP directory (same level as this README)
 
 
+--------------------------------------------------
+
+If not on Mac, you might need to add a custom path to the gem for download. To do this, find the gem path by running:
+    ruby -e "puts Gem.bindir"
+Then run mesa_pipeline with the gem path as the single argument (with "nsrr.bat" appended to the end.) It
+The path should look something like this:
+    C:/Ruby34-x64/bin/nsrr.bat

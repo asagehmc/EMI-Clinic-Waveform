@@ -1,4 +1,5 @@
 import json
+import sys
 
 import wfdb
 import numpy as np
@@ -7,6 +8,7 @@ import os
 import pickle
 import time
 import pandas as pd
+from matplotlib import pyplot as plt
 from scipy.signal import find_peaks
 
 from PPGtoBP.PPG_model.helper_functions_bp_model import predict_bp_from_ppg, normalize_min_max
@@ -98,7 +100,7 @@ def process_data(record_id, record_data):
         ppg = episode_obj["ppg"]
         normalized_ppg = normalize_min_max(ppg)
         predicted_bp = predict_bp_from_ppg(normalized_ppg)
-        systolic, diastolic = get_sys_dias_from_signal_seg(predicted_bp, 60)
+        systolic, diastolic = get_sys_dias_from_signal_seg(predicted_bp, 200)
         systolic_preds.append(systolic)
         diastolic_preds.append(diastolic)
         n_processed += 1
@@ -120,20 +122,22 @@ def process_data(record_id, record_data):
         "patient": record_data["patient_data"]
     }
 
-    with open(f"mesa_processed/mesa-sleep-{record_id:04}", 'w') as json_file:
+    with open(f"mesa_processed/mesa-sleep-{record_id:04}.json", 'w') as json_file:
         json.dump(out_json, json_file, indent=4)
     print(f"finished processing patient {record_id:04}")
 
 
 def main():
-    # load in the mimic clinical databases first so they are only opened once throughout the program
     record_ids = get_record_ids()
-    start = 29
+    start = 1212
     start_idx = record_ids.index(start)
     for record_id in record_ids[start_idx:]:
         try:
             print(f"Processing record {record_id:04}")
-            process_data(record_id, get_data_for_patient(record_id))
+            if len(sys.argv) > 1:
+                process_data(record_id, get_data_for_patient(record_id, sys.argv[1]))
+            else:
+                process_data(record_id, get_data_for_patient(record_id))
         except:
             print(f"Problem handling patient ID {id}")
 
