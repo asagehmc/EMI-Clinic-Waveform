@@ -91,6 +91,15 @@ def score_rf_and_probability(X, y, test_size=0.2):
     y_prob = model.predict_proba(X_test)
     return model, y_pred, y_prob, y_test, X_test
 
+def score_rf_and_probability(X, y, test_size=0.2):
+    model = RandomForestClassifier()
+    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)
+    return model, y_pred, y_prob, y_test, X_test
+
 def optimize_rfc_with_smote(X, y, cv=5, scoring="accuracy", oversampling_method="smote"):
     """
     Performs hyperparameter tuning for the RandomForestClassifier using a pipeline
@@ -458,6 +467,7 @@ def compare_averages_summary_models(X, y):
         print(f"{model_type} averaged summary accuracies: {avg_acc}")
         print(f"{model_type} has standard devation of accuracies: {avg_std}")
         return acc_list, avg_acc
+
 
 def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_sampling):
     """
