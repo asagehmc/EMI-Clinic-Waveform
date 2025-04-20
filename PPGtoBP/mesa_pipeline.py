@@ -146,7 +146,6 @@ def main():
                 process_data(record_id, get_data_for_patient(record_id))
         except:
             print(f"Problem handling patient ID {record_id}")
-            raise
 
         os.system('cls' if os.name == 'nt' else 'clear')
 
