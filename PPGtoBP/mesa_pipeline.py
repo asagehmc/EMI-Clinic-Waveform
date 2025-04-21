@@ -141,7 +141,7 @@ def process_data(record_id, record_data):
 
 def main():
     record_ids = get_record_ids()
-    start = 1212
+    start = 1213
     start_idx = record_ids.index(start)
     for record_id in record_ids[start_idx:]:
         try:
@@ -152,7 +152,6 @@ def main():
                 process_data(record_id, get_data_for_patient(record_id))
         except:
             print(f"Problem handling patient ID {record_id}")
-            raise
 
         os.system('cls' if os.name == 'nt' else 'clear')
 
