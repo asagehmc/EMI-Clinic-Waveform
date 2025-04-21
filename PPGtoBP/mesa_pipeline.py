@@ -135,7 +135,7 @@ def process_data(record_id, record_data):
 
 def main():
     record_ids = get_record_ids()
-    start = 1212
+    start = 1
     start_idx = record_ids.index(start)
     for record_id in record_ids[start_idx:]:
         try:
