@@ -109,6 +109,29 @@ def get_aligned_ss_and_bp(admissions_leadii, include_start_time=False):
     return data_dictionary
 
 
+def get_sleep_summary_stats_for_instance(ss):
+    """
+    returns % of REM, NREM, and wake
+    :param ss: array of sleep stages
+    :return:
+    """
+    uniques, counts = np.unique(ss, return_counts=True)
+    percentages = dict(zip(uniques, counts / len(ss)))
+    if 1 in percentages.keys():
+        ss_1 = percentages[1]
+    else:
+        ss_1 = 0
+    if 2 in percentages.keys():
+        ss_2 = percentages[2]
+    else:
+        ss_2 = 0
+    if 3 in percentages.keys():
+        ss_3 = percentages[3]
+    else:
+        ss_3 = 0
+
+    return ss_1, ss_2, ss_3
+
 def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hours, patients, admissions):
     """
     returns summary statistics features for one instance

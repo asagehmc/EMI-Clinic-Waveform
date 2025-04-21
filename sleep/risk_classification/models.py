@@ -14,11 +14,11 @@ from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.pipeline import Pipeline
 
 # SKETCHY DIRECTORY SOLUTION --> need to fix
-os.chdir("/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
-from time2feat.t2f.extraction.extractor import feature_extraction
-from time2feat.t2f.utils.importance_old import feature_selection
-from time2feat.t2f.model.clustering import ClusterWrapper
-os.chdir("/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
+os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
+from t2f.extraction.extractor import feature_extraction
+from t2f.utils.importance_old import feature_selection
+from t2f.model.clustering import ClusterWrapper
+os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
 
 
 # Standard Supervised Models: Cross-Validation & Test Set Scoring
@@ -112,6 +112,11 @@ def optimize_rfc_with_smote(X, y, cv=5, scoring="accuracy", oversampling_method=
     results = grid_search.cv_results_
     return grid_search, results
 
+def get_rfc_model(X,y, test_size):
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+    return  model
 
 def score_summary_model(X, y, model_type, test_size=0.2):
     """
