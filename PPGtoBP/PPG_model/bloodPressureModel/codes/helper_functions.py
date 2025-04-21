@@ -3,9 +3,7 @@
 """
 
 from tqdm import tqdm
-import numpy as np
-import matplotlib.pyplot as plt
-import pickle
+
 from PPGtoBP.PPG_model.bloodPressureModel.codes.metrics import *
 import seaborn as sns
 sns.set()
