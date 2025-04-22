@@ -1,25 +1,14 @@
 import json
 import sys
 
-import wfdb
 import numpy as np
-import requests
 import os
-import pickle
-import time
-import pandas as pd
-from matplotlib import pyplot as plt
+
 from scipy.signal import find_peaks, resample
 
 from PPGtoBP.PPG_model.helper_functions_bp_model import predict_bp_from_ppg, normalize_min_max
 from PPGtoBP.download_nsrr import get_record_ids
 from download_nsrr import get_data_for_patient
-
-PATIENTS_DB = None
-ADMISSIONS_DB = None
-DIAGNOSES_DB = None
-ICDLOOKUP_DB = None
-CHARTEVENTS_DB = None
 
 
 def check_available_signals(available_signals):
@@ -88,7 +77,6 @@ def process_data(record_id, record_data):
 
     :return:
     """
-
     # values in seconds
     episode_len = 10  # how long each episode is
     step_len = 5  # how large of a time step between episodes
