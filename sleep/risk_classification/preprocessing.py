@@ -236,6 +236,17 @@ def get_start_before_sleep(bp_ss, awake_int):
 
     return after_sleep_bp_ss
 
+def mean_zero(start_before_sleep_arrays):
+    start_before_sleep_arrays_m0 = []
+    for arr in start_before_sleep_arrays:
+        sbp_mean = np.nanmean(arr[0])
+        dbp_mean = np.nanmean(arr[1])
+        start_before_sleep_arrays_m0 += [np.array([[val - sbp_mean for val in arr[0]],
+                                                   [val - dbp_mean for val in arr[1]],
+                                                   arr[2]])]
+
+    return start_before_sleep_arrays_m0
+
 
 def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii):
     """

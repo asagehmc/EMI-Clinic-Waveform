@@ -427,7 +427,6 @@ def compare_averaged_supervised_clustering(X_feats, y, training_sampling, num_ru
                 print(f"{model_type}, {transform_type} std: {avg_std}")
     return supervised_accuracies
 
-
 def compare_summary_models(X1, y1, X2, y2):
     """
     Compares summary models (SVC, RFC, KNC) on two different datasets.
@@ -463,7 +462,7 @@ def compare_averages_summary_models(X, y):
         avg_std = np.std(np.array(acc_list), axis=0)
         print(f"{model_type} averaged summary accuracies: {avg_acc}")
         print(f"{model_type} has standard devation of accuracies: {avg_std}")
-    return acc_list, avg_acc
+        return acc_list, avg_acc
 
 
 def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_sampling):
