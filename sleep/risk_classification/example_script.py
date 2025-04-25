@@ -49,7 +49,7 @@ X_sum, y_sum, patient_ids_sum = preprocessing.get_features(patient_ids, start_be
 print("sum")
 X_sum_dem, y_sum_dem, patient_ids_sum_dem = preprocessing.get_features(patient_ids, start_before_sleep_arrays, True, True, True, patients, admissions, diagnoses_leadii, 8)
 print("sum dem")
-X_ts, y_ts, patient_ids_ts = preprocessing.get_features(patient_ids, start_before_sleep_arrays, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
+X_ts, y_ts, patient_ids_ts = preprocessing.get_features(list(data_dictionary.keys()), start_before_sleep_arrays, 'MESA', False, True, False, None, None, None, 8, 8)
 print("ts")
 
 # means
@@ -65,3 +65,71 @@ X_ts_feats = models.calculate_features(X_ts)
 X_ts_meaned_feats = models.calculate_features(X_ts_meaned)
 
 supervised_accuracies, all_models_dict = models.get_selected_features_and_scores_over_n_runs(10, X_ts_feats, y_ts, 0.5)
+
+
+# MESA
+data_dictionary = preprocessing.get_aligned_ss_and_bp()
+patient_ids = np.array(list(data_dictionary.keys()))
+start_before_sleep_arrays = [preprocessing.get_start_before_sleep(bp_ss,0) for bp_ss in list(data_dictionary.values())]
+
+# fix out unrealistic blood pressure values
+start_before_sleep_arrays_cap = []
+for arr in start_before_sleep_arrays:
+    sbp = arr[0]
+    dbp = arr[1]
+    ss = arr[2]
+    
+    sbp_capped = np.array([val if val<=180 else 180 for val in sbp])
+    sbp_capped = np.array([val if val >= 80 else 80 for val in sbp_capped])
+    dbp_capped = np.array([val if val >= 40 else 40 for val in dbp])
+    dbp_capped = np.array([val if val <= 120 else 120 for val in dbp_capped])
+
+    arr = np.concatenate((sbp_capped.reshape((1, -1)), dbp_capped.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
+    start_before_sleep_arrays_cap += [arr]
+
+X_ts_6, patient_ids_ts_6 = preprocessing.get_features(patient_ids, start_before_sleep_arrays_cap, 'MESA', False, False, False, None, None, None, 6, 6)
+
+X_ts_6_m0 = []
+for arr in X_ts_6:
+    s_mean = np.mean(arr[0],keepdims=True)
+    d_mean = np.mean(arr[1],keepdims=True)
+
+    arr = np.concatenate(((arr[0] - s_mean).reshape((1, -1)), (arr[1] - d_mean).reshape((1, -1)), arr[2].reshape((1, -1))), axis=0)
+    X_ts_6_m0 += [arr]
+X_ts_6_m0 = np.array(X_ts_6_m0)
+
+X_ts_6_m0_no = np.concatenate((X_ts_6_m0[:43],X_ts_6_m0[44:]))
+
+X_ts_6_m0_no_feats = models.calculate_features(X_ts_6_m0_no)
+
+n_clusters = 2
+# known_dif = []
+model_type = 'KMeans'
+transform_type = 'robust'
+y_preds = []
+# for i in range(10):
+for model_type in ['Hierarchical', 'KMeans', 'Spectral']:
+    for transform_type in ['std', 'minmax', 'robust']:
+        # Feature selection
+        context = {'model_type': model_type, 'transform_type': transform_type}
+        top_feats = feature_selection(X_ts_6_m0_rmed_feats, labels={}, context=context)
+        print("selected features")
+        print(len(top_feats))
+        df_feats = X_ts_6_m0_rmed_feats[top_feats]
+        
+        # Clustering
+        model = ClusterWrapper(n_clusters=n_clusters,model_type=model_type, transform_type=transform_type)
+        y_pred = model.fit_predict(df_feats)
+        # mode = stats.mode(y_pred)[0]
+        # known_dif += [mode!=y_pred[43]]
+        print(y_pred)
+        y_preds.append(y_pred)
+
+y_preds = np.array(y_preds)
+
+# print(np.mean(known_dif))
+
+for i in range(20):
+    plt.plot(X_ts_6_m0[i][0])
+    plt.plot(X_ts_6_m0[i][0])
+    plt.show()

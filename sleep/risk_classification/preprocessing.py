@@ -1,6 +1,7 @@
 import os
 import json
 import numpy as np
+from dask.array import piecewise
 from jinja2.filters import sync_do_sum
 from numpy.lib.stride_tricks import sliding_window_view
 from requests.compat import JSONDecodeError
@@ -11,7 +12,7 @@ import importlib
 import mimic_diagnoses
 importlib.reload(mimic_diagnoses)
 
-def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id,admissions_leadii):
+def get_aligned_ss_and_bp_one_instance(patient_data_path,pipeline='MESA',patient_id=None,admissions_leadii=None):
     """
     :param patient_data_path: str, path to patient data
     :param patient_id: str, patient id
@@ -27,17 +28,21 @@ def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id,admissions_l
     except FileNotFoundError:
         # file doesn't exist
         return []
-
-    # gets datetime str of the data measurement and cuts off decimal time
-    date = patient_data['date'][:19]
-    # checks if patient died during stay where data was taken
-    died = mimic_diagnoses.check_if_died_during_admission(int(patient_id), date, admissions_leadii)
-    if died:
-        return []
+    
+    if pipeline=='MIMIC':
+        # gets datetime str of the data measurement and cuts off decimal time
+        date = patient_data['date'][:19]
+        # checks if patient died during stay where data was taken
+        died = mimic_diagnoses.check_if_died_during_admission(int(patient_id), date, admissions_leadii)
+        if died:
+            return []
 
     if len(np.array(patient_data['sleep_stages'])) == 0:
         return []
-    ss = np.argmax(np.array(patient_data['sleep_stages']), axis=1)
+    if pipeline=='MIMIC':
+        ss = np.argmax(np.array(patient_data['sleep_stages']), axis=1)
+    elif pipeline=='MESA':
+        ss = np.array(patient_data['sleep_stages'])
     sbp = np.array(patient_data['systolic'])
     dbp = np.array(patient_data['diastolic'])
 
@@ -54,35 +59,47 @@ def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id,admissions_l
 
     return bp_ss
 
-def get_aligned_ss_and_bp(admissions_leadii):
+def get_aligned_ss_and_bp(pipeline='MESA', admissions_leadii=None):
     """
     for each patient, gets the aligned SS and BP by taking the highest probability
     of sleep stage
     :return:
     """
-    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
-
     data_dictionary = {}
-    for patient_subset in os.listdir(data_path):
-        subset_path = os.path.join(data_path, patient_subset)
-        if not os.path.isdir(subset_path):
-            continue
-        for patient in os.listdir(subset_path):
-            patient_path = os.path.join(subset_path, patient)
-            if not os.path.isdir(patient_path) or patient[0]!='p':
+    if pipeline=="MIMIC":
+        data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+        for patient_subset in os.listdir(data_path):
+            subset_path = os.path.join(data_path, patient_subset)
+            if not os.path.isdir(subset_path):
                 continue
-            patient_id = patient.split('p')[1]
-
-            i = 0
-            for ts in os.listdir(patient_path):
-                patient_data_path = os.path.join(patient_path, ts)
-
-                bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, patient_id, admissions_leadii)
-                if len(bp_ss) == 0:
+            for patient in os.listdir(subset_path):
+                patient_path = os.path.join(subset_path, patient)
+                if not os.path.isdir(patient_path) or patient[0] != 'p':
                     continue
-                else:
-                    data_dictionary[(patient_id,i)] = bp_ss
-                    i += 1
+                patient_id = patient.split('p')[1]
+
+                i = 0
+                for ts in os.listdir(patient_path):
+                    patient_data_path = os.path.join(patient_path, ts)
+
+                    bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, 'MIMIC', patient_id, admissions_leadii)
+                    if len(bp_ss) == 0:
+                        continue
+                    else:
+                        data_dictionary[(patient_id, i)] = bp_ss
+                        i += 1
+    elif pipeline=="MESA":
+        data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/PPGtoBP/mesa_processed"
+
+        for patient in os.listdir(data_path):
+            patient_data_path = os.path.join(data_path, patient)
+            patient_id = patient.split('.')[0][-4:]
+
+            bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, 'MESA')
+            if len(bp_ss) == 0:
+                continue
+            else:
+                data_dictionary[patient_id] = bp_ss
 
     return data_dictionary
 
@@ -184,7 +201,7 @@ def pad_list_of_arrays(list_of_arrays, max_length, padding_value=0):
     return np.array(padded_arrays)
 
 
-def get_start_before_sleep(bp_ss):
+def get_start_before_sleep(bp_ss, awake_int):
     """
     gets sleep start time and then returns arrays values starting then
     :param bp_ss:
@@ -201,12 +218,12 @@ def get_start_before_sleep(bp_ss):
     # np.pad(np.apply_along_axis(lambda x: np.mean(x), 1, sliding_window_view(bp, 60)), (30, 29), 'edge')
 
     try:
-        sleep_start = np.where(rolling_mode!=3)[0][0] - 15
+        sleep_start = np.where(rolling_mode!=awake_int)[0][0] - 15
         if len(ss[sleep_start:])>=8*60*2:
             end = sleep_start+8*60*2
         else:
             end = sleep_start + len(ss[sleep_start:])
-        if np.sum(ss[sleep_start:end] == 3) / len(ss[sleep_start:end]) >= 0.5:
+        if np.sum(ss[sleep_start:end] == awake_int) / len(ss[sleep_start:end]) >= 0.5:
             #print("not sleep")
             return np.array([[], [], []])
         #print(sleep_start)
@@ -295,7 +312,7 @@ def load_preprocessing_data():
     return X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
 
 
-def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics, patients, admissions, diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):
+def get_features(patient_ids, start_before_sleep_arrays, pipeline, summary, labels, demographics, patients, admissions, diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):
     """
     gets features for all data
     :param data_dictionary:
@@ -307,7 +324,10 @@ def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demogr
     if summary:
         features = get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours, patients, admissions,diagnoses_leadii)
     else:
-        features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii)
+        if pipeline == 'MIMIC':
+            features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii)
+        elif pipeline == 'MESA':
+            features = get_time_series_features(patient_ids, start_before_sleep_arrays, False, min_num_hours,fixed_block_hours, None)
 
     if labels:
         # features, labels, corresponding patient ids
