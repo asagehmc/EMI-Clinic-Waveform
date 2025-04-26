@@ -1,3 +1,9 @@
+"""
+Filename: models.py
+
+Description: This file contains functions for training and testing risk classification models
+"""
+
 import numpy as np
 import os
 import random
@@ -13,12 +19,11 @@ from sklearn.model_selection import cross_validate, train_test_split, GridSearch
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.pipeline import Pipeline
 
-# SKETCHY DIRECTORY SOLUTION
-os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/time2feat")
-from time2feat.t2f.extraction.extractor import feature_extraction
-from time2feat.t2f.utils.importance_old import feature_selection
-from time2feat.t2f.model.clustering import ClusterWrapper
-os.chdir("/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification")
+os.chdir(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'time2feat'))
+from t2f.extraction.extractor import feature_extraction
+from t2f.utils.importance_old import feature_selection
+from t2f.model.clustering import ClusterWrapper
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
 # Standard Supervised Models: Cross-Validation & Test Set Scoring
@@ -83,8 +88,17 @@ def cross_validate_summary_model_with_smote(X, y, model_type, oversampling_metho
 
 
 def score_rf_and_probability(X, y, test_size=0.2):
+    """
+    :param X: 2d np array, feature matrix
+    :param y: 1d np array, labels
+    :param test_size: float, percentage of data to test on
+    :return: model: sklearn random forest classifier
+             y_pred: predicted labels on the testing data
+             y_prob: predicted probabilities on the testing data
+             y_test: true labels on the testing data
+             X_test: feature matrix of the testing data
+    """
     model = RandomForestClassifier()
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
@@ -230,6 +244,10 @@ def compare_averaged_extended_evaluations(X, y, model_type="rfc", test_size=0.2,
 
 # Clustering Model Training & Accuracy Computation
 def calculate_features(X):
+    """
+    :param X: 3d np array, time series features
+    :return: pd df, pandas dataframe of the extracted features using tsfresh package
+    """
     # transpose from (patients, variables, timestamps) to (patients, timestamps, variables)
     X = np.transpose(X, (0, 2, 1))
 
@@ -241,9 +259,12 @@ def calculate_features(X):
 def train_t2f_model_from_calculated_features(X_feats, transform_type, model_type, y=None, training_sampling=0):
     """
     :param X_feats: calculated MTS features,
-    :param transform_type: str
-    :param model_type:
-    :return:
+    :param transform_type: str, one of "std", "minmax", or "robust"
+    :param model_type: str, one of "Hierarchical", "KMeans", or "Spectral"
+    :param y: 1d np array, default is None, instance labels
+    :return: y_pred, np array, predicted labels
+             model, sklearn clustering model
+             top_feats, list of strs, selected features
     """
     if y is None:
         labels = {} # unsupervised mode
@@ -318,13 +339,18 @@ def accuracies(y_pred, y_true):
     :param y_true: True labels.
     :return: A tuple (direct_accuracy, risk_accuracy, no_risk_accuracy, FPR, FNR)
     """
+    # overall accuracy
     direct_accuracy = 100 * np.sum(y_pred == y_true) / len(y_true)
+    # positive accuracy
     risk_accuracy = 100 * np.sum(
         [1 if pred == true else 0 for pred, true in zip(y_pred, y_true) if true == 1]) / np.sum(y_true)
+    # negative accuracy
     no_risk_accuracy = 100 * np.sum([1 if pred == true else 0 for pred, true in zip(y_pred, y_true) if true == 0]) / (
                 len(y_true) - np.sum(y_true))
+    # false positive rate
     FPR = 100 * np.sum([1 if pred != true else 0 for pred, true in zip(y_pred, y_true) if pred == 1]) / (
                 len(y_true) - np.sum(y_true))
+    # false negative rate
     FNR = 100 * np.sum([1 if pred != true else 0 for pred, true in zip(y_pred, y_true) if pred == 0]) / np.sum(y_true)
     return direct_accuracy, risk_accuracy, no_risk_accuracy, FPR, FNR
 
@@ -428,9 +454,9 @@ def compare_averaged_supervised_clustering(X_feats, y, training_sampling, num_ru
 
 def compare_unsupervised_clustering_MESA(X_feats, n_clusters=2):
     """
-    :param X_feats: 
-    :param n_clusters: 
-    :return: 
+    :param X_feats: pd df, calculated features from input waveform data using tsfresh
+    :param n_clusters: int, number of clusters
+    :return: np array, array of predicted labels
     """
     y_preds = []
     # for i in range(10):

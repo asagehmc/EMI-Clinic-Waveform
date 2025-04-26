@@ -1,3 +1,9 @@
+"""
+Filename: example_script.py
+
+Description: This file contains example scripts for implementing the MESA and MIMIC pipelines
+"""
+
 import pandas as pd
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view

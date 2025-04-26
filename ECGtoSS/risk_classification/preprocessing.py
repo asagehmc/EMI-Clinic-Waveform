@@ -1,3 +1,9 @@
+"""
+Filename: preprocessing.py
+
+Description: This file contains functions for getting the data formatted into features to be inputted into models
+"""
+
 import os
 import json
 import numpy as np
@@ -283,7 +289,7 @@ def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min
     :param min_num_hours: int, minimum number of hours to include
     :param fixed_block_hours: int, number of hours to zero pad to, must be greater than or equal to min_num_hours
     :param diagnoses: pd df, diagnoses.csv pd df
-    :return:
+    :return: 3d np array, bp_ss's time series features'
     """
     # checks constraint
     if min_num_hours > fixed_block_hours:

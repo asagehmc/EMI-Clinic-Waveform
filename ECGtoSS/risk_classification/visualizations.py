@@ -15,12 +15,13 @@ importlib.reload(models)
 
 def visualize_with_without_smote_for_rf(X1,y1,X2,y2,subgroup_titles):
     """
-    :param X1: 
-    :param y1: 
-    :param X2: 
-    :param y2: 
-    :param subgroup_titles: 
-    :return: 
+    boxplots of accuracies for two different subgroups
+    :param X1: 2d np array, feature matrix
+    :param y1: 1d np array, true labels
+    :param X2: 2d np array, feature matrix
+    :param y2: 1d np array, true labels
+    :param subgroup_titles: list of str of length 2, subgroup titles
+    return: None
     """
     acc_list_1 = models.accuracy_averages_for_rf(X1,y1)
     acc_list_2 = models.accuracy_averages_for_rf(X2,y2)
@@ -45,14 +46,15 @@ def visualize_with_without_smote_for_rf(X1,y1,X2,y2,subgroup_titles):
 
 def visualize_rf_for_three(X1,y1,X2,y2, X3,y3, subgroup_titles):
     """
-    :param X1: 
-    :param y1: 
-    :param X2: 
-    :param y2: 
-    :param X3: 
-    :param y3: 
-    :param subgroup_titles: 
-    :return: 
+    boxplots of accuracies for three different subgroups
+    :param X1: 2d np array, feature matrix
+    :param y1: 1d np array, true labels
+    :param X2: 2d np array, feature matrix
+    :param y2: 1d np array, true labels
+    :param X3: 2d np array, feature matrix
+    :param y3: 1d np array, true labels
+    :param subgroup_titles: list of str of length 3, subgroup titles
+    return: None
     """
     acc_list_1 = models.accuracy_averages_for_rf(X1,y1)
     acc_list_2 = models.accuracy_averages_for_rf(X2, y2)
@@ -90,11 +92,12 @@ def visualize_rf_for_three(X1,y1,X2,y2, X3,y3, subgroup_titles):
 
 def fft_magnitude_phase_plot(N, dt, magnitudes, phases):
     """
-    :param N: 
-    :param dt: 
-    :param magnitudes: 
-    :param phases: 
-    :return: 
+    plots FFT magnitude phase plot
+    :param N: int, number of time stamps
+    :param dt: int, time in seconds between samples
+    :param magnitudes: list, magnitude coefficients of FFT
+    :param phases: list, phase coefficients of FFT
+    :return: None
     """
     fs = 1 / dt
 
@@ -118,11 +121,12 @@ def fft_magnitude_phase_plot(N, dt, magnitudes, phases):
 
 def fft_reconstruction_plot(original_signal, dt, magnitudes, phases, symmetric = True):
     """
-    :param original_signal: 
-    :param dt: 
-    :param magnitudes: 
-    :param phases: 
-    :param symmetric: 
+    plots FFT reconstruction plot
+    :param original_signal: 1d np array, original time series on which coefficients were computed
+    :param dt: int, time in seconds between samples
+    :param magnitudes: list, magnitude coefficients of FFT
+    :param phases: list, phase coefficients of FFT
+    :param symmetric: bool, whether to use symmetric FFT
     :return: 
     """
     N = len(original_signal)
@@ -153,9 +157,9 @@ def fft_reconstruction_plot(original_signal, dt, magnitudes, phases, symmetric =
 
 def reduce_dimensions(X, n_components=2):
     """
-    :param X: 
-    :param n_components: 
-    :return: 
+    :param X: 2d np array, feature matrix
+    :param n_components: int, number of dimensions to reduce to
+    :return: np array, feature matrix with reduced dimensions
     """
     # PCA first for efficiency
     pca = PCA(n_components=50)
@@ -169,10 +173,11 @@ def reduce_dimensions(X, n_components=2):
 
 def clustering_visualization(X_reduced, clustering_labels, n_clusters, model_type, transform_type):
     """
-    :param X_reduced:
-    :param clustering_labels:
-    :param n_clusters:
-    :param model_type:
+    plots clusters
+    :param X_reduced: np array, feature matrix with reduced dimensions
+    :param clustering_labels: 1d np array, predicted cluster labels
+    :param n_clusters: int, number of clusters
+    :param model_type: str, type of model to use, one of "Hierarchical" or "KMeans" or "Spectral"
     :return:
     """
     plt.figure(figsize=(10, 6))
@@ -183,8 +188,9 @@ def clustering_visualization(X_reduced, clustering_labels, n_clusters, model_typ
     
 def dendrogram_visualization(X, truncate_p=None):
     """
-    :param X: 
-    :param truncate_p: 
+    plots dendrogram for Hierarchical Clustering
+    :param X: np array, feature matrix
+    :param truncate_p: int (optional), number of samples to truncate to
     :return: 
     """
     if len(X) <= 1000:

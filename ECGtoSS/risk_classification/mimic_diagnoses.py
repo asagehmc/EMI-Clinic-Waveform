@@ -1,3 +1,10 @@
+"""
+Filename: mimic_diagnoses.py
+
+Description: This file contains functions for accessing MIMIC clinical data in relation to
+            the waveform data using patient ids
+"""
+
 import pandas as pd
 import numpy as np
 import json
