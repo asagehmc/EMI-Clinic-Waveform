@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
+from imblearn.over_sampling import SMOTE
 
 # python script imports
 import mimic_diagnoses
@@ -43,25 +44,46 @@ for arr in start_before_sleep_arrays:
     arr = np.concatenate((sbp_means.reshape((1,-1)),dbp_means.reshape((1,-1)),ss.reshape((1,-1))),axis=0)
     start_before_sleep_arrays_bp_meaned += [arr]
 
+start_before_sleep_arrays_m0 = preprocessing.mean_zero(start_before_sleep_arrays)
+start_before_sleep_arrays_bp_meaned_m0 = preprocessing.mean_zero(start_before_sleep_arrays_bp_meaned)
 
 print("got sleep starts")
-X_sum, y_sum, patient_ids_sum = preprocessing.get_features(patient_ids, start_before_sleep_arrays, True, True, False, patients, admissions, diagnoses_leadii, 8)
+X_sum, y_sum, patient_ids_sum = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, True, True, False, patients, admissions, diagnoses_leadii, 8)
 print("sum")
-X_sum_dem, y_sum_dem, patient_ids_sum_dem = preprocessing.get_features(patient_ids, start_before_sleep_arrays, True, True, True, patients, admissions, diagnoses_leadii, 8)
+X_sum_dem, y_sum_dem, patient_ids_sum_dem = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, True, True, True, patients, admissions, diagnoses_leadii, 8)
 print("sum dem")
-X_ts, y_ts, patient_ids_ts = preprocessing.get_features(patient_ids, start_before_sleep_arrays, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
+X_ts, y_ts, patient_ids_ts = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
 print("ts")
 
 # means
-X_sum_meaned, y_sum_meaned, patient_ids_sum_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned, True, True, False, patients, admissions, diagnoses_leadii, 8)
+X_sum_meaned, y_sum_meaned, patient_ids_sum_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned_m0, True, True, False, patients, admissions, diagnoses_leadii, 8)
 print("sum")
-X_sum_dem_meaned, y_sum_dem_meaned, patient_ids_sum_dem_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned, True, True, True, patients, admissions, diagnoses_leadii, 8)
+X_sum_dem_meaned, y_sum_dem_meaned, patient_ids_sum_dem_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned_m0, True, True, True, patients, admissions, diagnoses_leadii, 8)
 print("sum dem")
-X_ts_meaned, y_ts_meaned, patient_ids_ts_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
+X_ts_meaned, y_ts_meaned, patient_ids_ts_meaned = preprocessing.get_features(patient_ids, start_before_sleep_arrays_bp_meaned_m0, False, True, False, patients, admissions, diagnoses_leadii, 6, 6)
 print("ts")
 
 # calculate features
 X_ts_feats = models.calculate_features(X_ts)
 X_ts_meaned_feats = models.calculate_features(X_ts_meaned)
 
-supervised_accuracies, all_models_dict = models.get_selected_features_and_scores_over_n_runs(10, X_ts_feats, y_ts, 0.5)
+# SMOTE APPLICATION
+sm = SMOTE(sampling_strategy=1.0)
+X_smote, y_smote = sm.fit_resample(X_ts_feats.dropna(axis=1, inplace=False), y_ts)
+X_smote_m, y_smote_m = sm.fit_resample(X_ts_meaned_feats.dropna(axis=1, inplace=False), y_ts_meaned)
+
+supervised_accuracies_50_ts, all_models_dict_50_ts = models.get_selected_features_and_scores_over_n_runs(10, X_ts_feats, y_ts, 0.5)
+supervised_accuracies_80_ts, all_models_dict_80_ts = models.get_selected_features_and_scores_over_n_runs(10, X_ts_feats, y_ts, 0.8)
+
+# supervised_accuracies_20, all_models_dict_20 = models.get_selected_features_and_scores_over_n_runs(10, X_smote, y_smote, 0.2)
+supervised_accuracies_50, all_models_dict_50 = models.get_selected_features_and_scores_over_n_runs(10, X_smote, y_smote, 0.5)
+supervised_accuracies_80, all_models_dict_80 = models.get_selected_features_and_scores_over_n_runs(10, X_smote, y_smote, 0.8)
+
+supervised_accuracies_m_20, all_models_dict_m_20 = models.get_selected_features_and_scores_over_n_runs(10, X_smote_m, y_smote_m, 0.2)
+supervised_accuracies_m_50, all_models_dict_m_50 = models.get_selected_features_and_scores_over_n_runs(10, X_smote_m, y_smote_m, 0.5)
+supervised_accuracies_m_80, all_models_dict_m_80 = models.get_selected_features_and_scores_over_n_runs(10, X_smote_m, y_smote_m, 0.8)
+
+unsupervised_accuracies_abs = compare_averaged_unsupervised_clustering(X_smote_abs, y_smote_abs, 10)
+supervised_accuracies_abs_50, all_models_dict_abs_50 = models.get_selected_features_and_scores_over_n_runs(10, X_smote_abs, y_smote_abs, 0.5)
+
+

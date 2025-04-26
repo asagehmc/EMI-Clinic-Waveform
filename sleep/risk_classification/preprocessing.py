@@ -9,6 +9,7 @@ import pandas as pd
 import importlib
 
 import mimic_diagnoses
+from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
 
 importlib.reload(mimic_diagnoses)
 
@@ -67,7 +68,7 @@ def get_aligned_ss_and_bp(admissions_leadii, include_start_time=False):
     of sleep stage
     :return:
     """
-    data_path = "/Users/luismendoza/Desktop/CS/HMC CS/Clinic/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
 
     data_dictionary = {}
     start_times = []
@@ -278,6 +279,17 @@ def get_start_before_sleep(bp_ss, include_sleep_start=False):
         return after_sleep_bp_ss, sleep_start
     return after_sleep_bp_ss
 
+def mean_zero(start_before_sleep_arrays):
+    start_before_sleep_arrays_m0 = []
+    for arr in start_before_sleep_arrays:
+        sbp_mean = np.nanmean(arr[0])
+        dbp_mean = np.nanmean(arr[1])
+        start_before_sleep_arrays_m0 += [np.array([[val - sbp_mean for val in arr[0]],
+                                                   [val - dbp_mean for val in arr[1]],
+                                                   arr[2]])]
+
+    return start_before_sleep_arrays_m0
+
 
 def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,
                              diagnoses_leadii):
@@ -325,7 +337,6 @@ def load_preprocessing_data():
     Returns:
         Tuple: (X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts)
     """
-    from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
     admissions_leadii = load_admissions_leadii()
 
     # Load the additional necessary DataFrames.
