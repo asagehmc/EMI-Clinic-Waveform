@@ -391,7 +391,6 @@ def compare_averaged_unsupervised_clustering(X_feats, y, num_runs):
                 print(f"{model_type}, {transform_type} std: {avg_std}")
     return unsupervised_accuracies
 
-
 def compare_averaged_supervised_clustering(X_feats, y, training_sampling, num_runs):
     """
     Evaluates clustering in a semi-supervised setting (where part of the labels are known)
@@ -427,6 +426,31 @@ def compare_averaged_supervised_clustering(X_feats, y, training_sampling, num_ru
                 print(f"{model_type}, {transform_type} std: {avg_std}")
     return supervised_accuracies
 
+def compare_unsupervised_clustering_MESA(X_feats, n_clusters=2):
+    """
+    :param X_feats: 
+    :param n_clusters: 
+    :return: 
+    """
+    y_preds = []
+    # for i in range(10):
+    for model_type in ['Hierarchical', 'KMeans', 'Spectral']:
+        for transform_type in ['std', 'minmax', 'robust']:
+            # Feature selection
+            context = {'model_type': model_type, 'transform_type': transform_type}
+            top_feats = feature_selection(X_feats, labels={}, context=context)
+            df_feats = X_feats[top_feats]
+
+            # Clustering
+            model = ClusterWrapper(n_clusters=n_clusters, model_type=model_type, transform_type=transform_type)
+            y_pred = model.fit_predict(df_feats)
+            y_preds.append(y_pred)
+
+    y_preds = np.array(y_preds)
+    
+    return y_preds
+
+
 def compare_summary_models(X1, y1, X2, y2):
     """
     Compares summary models (SVC, RFC, KNC) on two different datasets.
@@ -444,6 +468,25 @@ def compare_summary_models(X1, y1, X2, y2):
 
     return
 
+def accuracy_averages_for_rf(X, y):
+    """
+    Runs multiple evaluations of summary models and prints averaged accuracies.
+
+    :param X: Feature matrix.
+    :param y: Labels.
+    """
+    model_type = "rfc"
+    acc_list = []
+    for _ in range(50):
+        scores = score_summary_model(X, y, model_type)
+        print(scores)
+        acc_list.append(scores)
+    avg_acc = np.mean(np.array(acc_list), axis=0)
+    avg_std = np.std(np.array(acc_list), axis=0)
+    print(f"{model_type} averaged summary accuracies: {avg_acc}")
+    print(f"{model_type} has standard devation of accuracies: {avg_std}")
+    return acc_list
+
 def compare_averages_summary_models(X, y):
     """
     Runs multiple evaluations of summary models and prints averaged accuracies.
@@ -451,8 +494,7 @@ def compare_averages_summary_models(X, y):
     :param X: Feature matrix.
     :param y: Labels.
     """
-    # for model_type in ["svc", "rfc", "knc"]:
-    for model_type in ["rfc"]:
+    for model_type in ["svc", "rfc", "knc"]:
         acc_list = []
         for _ in range(50):
             scores = score_summary_model(X, y, model_type)
@@ -462,7 +504,6 @@ def compare_averages_summary_models(X, y):
         avg_std = np.std(np.array(acc_list), axis=0)
         print(f"{model_type} averaged summary accuracies: {avg_acc}")
         print(f"{model_type} has standard devation of accuracies: {avg_std}")
-        return acc_list, avg_acc
 
 
 def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_sampling):

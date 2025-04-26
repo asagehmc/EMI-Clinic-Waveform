@@ -12,14 +12,15 @@ import importlib
 import mimic_diagnoses
 importlib.reload(mimic_diagnoses)
 
-def get_aligned_ss_and_bp_one_instance(patient_data_path,pipeline='MESA',patient_id=None,admissions_leadii=None):
+def get_aligned_ss_and_bp_one_instance(patient_data_path, pipeline='MESA',patient_id=None,admissions=None):
     """
     :param patient_data_path: str, path to patient data
-    :param patient_id: str, patient id
-    :param start_time: str, start time
-    :return: bp_ss array for the given patient's data path if there is data and they didn't die during the stay
-             else return []
+    :param pipeline: string, default 'MESA', either 'MESA' or 'MIMIC'
+    :param patient_id: str, default None, patient id, only necessary if pipeline='MIMIC'
+    :param admissions: pd df, default None, admissions.csv pd df, only necessary if pipeline='MIMIC'
+    :return: np array, 3 by number of samples, first row is SBP, second row is DBP, third is sleep stages
     """
+    # loads data
     try:
         patient_data = json.load(open(patient_data_path))
     except JSONDecodeError:
@@ -28,27 +29,33 @@ def get_aligned_ss_and_bp_one_instance(patient_data_path,pipeline='MESA',patient
     except FileNotFoundError:
         # file doesn't exist
         return []
-    
+
     if pipeline=='MIMIC':
         # gets datetime str of the data measurement and cuts off decimal time
         date = patient_data['date'][:19]
         # checks if patient died during stay where data was taken
-        died = mimic_diagnoses.check_if_died_during_admission(int(patient_id), date, admissions_leadii)
+        died = mimic_diagnoses.check_if_died_during_admission(int(patient_id), date, admissions)
         if died:
             return []
 
+    # no data samples
     if len(np.array(patient_data['sleep_stages'])) == 0:
         return []
+
     if pipeline=='MIMIC':
+        # calculate sleep stages from probabilities
         ss = np.argmax(np.array(patient_data['sleep_stages']), axis=1)
     elif pipeline=='MESA':
         ss = np.array(patient_data['sleep_stages'])
+
+    # sbp and dbp arrays
     sbp = np.array(patient_data['systolic'])
     dbp = np.array(patient_data['diastolic'])
 
+    # concatenate the three signals together
     try:
         bp_ss = np.concatenate((sbp.reshape((1, -1)), dbp.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
-    # if they are off by one
+    # if they are not the same length
     except ValueError:
         new_length = min(len(sbp), len(dbp), len(ss))
         sbp = sbp[:new_length]
@@ -59,7 +66,12 @@ def get_aligned_ss_and_bp_one_instance(patient_data_path,pipeline='MESA',patient
 
     return bp_ss
 
-def get_aligned_ss_and_bp(pipeline='MESA', admissions_leadii=None):
+def get_aligned_ss_and_bp(pipeline='MESA', admissions=None):
+    """
+    :param pipeline: str, default 'MESA', either 'MESA' or 'MIMIC'
+    :param admissions: pd df, default None, admissions.csv pd df, only necessary if pipeline='MIMIC'
+    :return: dictionary, for each patient (key), gets the aligned SS and BPs (value)
+    """
     """
     for each patient, gets the aligned SS and BP by taking the highest probability
     of sleep stage
@@ -67,7 +79,10 @@ def get_aligned_ss_and_bp(pipeline='MESA', admissions_leadii=None):
     """
     data_dictionary = {}
     if pipeline=="MIMIC":
-        data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+        sleep_dir_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_path = os.path.join(sleep_dir_path, 'data', 'mimic_aligned_data')
+
+        # find all patient data files
         for patient_subset in os.listdir(data_path):
             subset_path = os.path.join(data_path, patient_subset)
             if not os.path.isdir(subset_path):
@@ -82,35 +97,47 @@ def get_aligned_ss_and_bp(pipeline='MESA', admissions_leadii=None):
                 for ts in os.listdir(patient_path):
                     patient_data_path = os.path.join(patient_path, ts)
 
-                    bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, 'MIMIC', patient_id, admissions_leadii)
+                    # gets the aligned bp_ss array for that instance
+                    bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, 'MIMIC', patient_id, admissions)
                     if len(bp_ss) == 0:
+                        # doesn't save if no data there
                         continue
                     else:
+                        # because a patient can have more than one instance, keeps track of which one
                         data_dictionary[(patient_id, i)] = bp_ss
                         i += 1
-    elif pipeline=="MESA":
-        data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/PPGtoBP/mesa_processed"
 
+    elif pipeline=="MESA":
+        sleep_dir_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_path = os.path.join(sleep_dir_path, 'data', 'mesa_aligned_data')
+
+        # gets all patient files
         for patient in os.listdir(data_path):
             patient_data_path = os.path.join(data_path, patient)
             patient_id = patient.split('.')[0][-4:]
 
+            # gets the aligned bp_ss array for that instance
             bp_ss = get_aligned_ss_and_bp_one_instance(patient_data_path, 'MESA')
             if len(bp_ss) == 0:
+                # doesn't save if no data there
                 continue
             else:
+                # only has one instance per patient, so just records the id
                 data_dictionary[patient_id] = bp_ss
 
     return data_dictionary
 
-def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hours,patients,admissions):
+def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hours, patients, admissions):
     """
-    returns summary statistics features for one instance
-    :param bp_ss:  2d np array [[bp values],[ss values]]
-    :param demographics:
-    :param patient_id:
-    :return:
+    :param bp_ss: np array, 3 by number of samples, first row is SBP, second row is DBP, third is sleep stages
+    :param demographics: bool, True if including age + sex in features, False otherwise
+    :param patient_id: str, patient id
+    :param min_num_hours: int, minimum number of hours of data to include as a feature
+    :param patients: pd df, patients.csv pd df
+    :param admissions: pd df, admissions.csv pd df
+    :return: np array, array of nans if not enough data, or array summary stats with or without demographics
     """
+    # checks length of data
     if len(bp_ss[0]) < min_num_hours*60*2:
         if demographics:
             return np.array([np.nan, np.nan, np.nan, np.nan,np.nan,np.nan,np.nan,np.nan])
@@ -121,11 +148,12 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
     dbp = bp_ss[1]
     ss = bp_ss[2]
 
+    # bp summary stats
     sbp_mean = float(np.nanmean(sbp))
     dbp_mean = float(np.nanmean(dbp))
     bp_range = int(np.nanmax(sbp) - np.nanmin(sbp))
 
-
+    # sleep stage summary stats
     uniques, counts = np.unique(ss, return_counts=True)
     percentages = dict(zip(uniques, counts / len(ss)))
     if 1 in percentages.keys():
@@ -141,6 +169,7 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
     else:
         ss_3 = 0
 
+    # demographics handling
     if demographics:
         age, sex = mimic_diagnoses.basic_info(int(patient_id),patients,admissions)
         if 'F' in sex:
@@ -152,25 +181,26 @@ def get_summary_stats_for_instance(bp_ss, demographics, patient_id, min_num_hour
         return np.array([sbp_mean, dbp_mean, bp_range, ss_1, ss_2, ss_3])
 
 
-def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours,patients,admissions, diagnoses_leadii):
+def get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours, patients, admissions, diagnoses):
     """
     gets summary statistics features for all data
-    :param data_dictionary: str patient_ids keys and 2d np array [[bp values],[ss values]] values
+    :param start_before_sleep_arrays: list of np arrays, bp_ss starting after sleep start times
     :param labels: bool, if getting labels or not
-    :param demographics: bool if getting demographics or not
-    :return:
+    :param demographics: bool, if getting demographics or not
+    :param min_num_hours: int, minimum number of hours of data to include as a feature
+    :param patients: pd df, patients.csv pd df
+    :param admissions: pd df, admissions.csv pd df
+    :param diagnoses: pd df, diagnoses.csv pd df
+    :return: X, np array, summary statistics features
+             new_patient_ids, list of strings, list of patient ids corresponding to instances in features
     """
     X = np.array([get_summary_stats_for_instance(bp_ss,demographics,id,min_num_hours,patients,admissions) for id,bp_ss in zip(patient_ids,start_before_sleep_arrays)])
-    # mostly_sleep_mask = X[:, 4] != 1
-    # X = X[mostly_sleep_mask]
     nan_mask = np.isnan(X).any(axis=1)
     X = X[~nan_mask]
 
-    #new_patient_ids = patient_ids[~nan_mask]
     new_patient_ids = np.array(patient_ids)[~nan_mask]
     if labels:
-        y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses_leadii)
-        # y = y[mostly_sleep_mask]
+        y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses)
         y = y[~nan_mask]
         return X,y, new_patient_ids
     else:
@@ -181,18 +211,9 @@ def pad_list_of_arrays(list_of_arrays, max_length, padding_value=0):
     """
     pads a list of 2d np arrays to a length
     :param list_of_arrays: list of 2d arrays
-    :param max_length: length to pad to
-    :param padding_value:
-    :return:
-    """
-    """Pads a list of numpy arrays to the same length.
-
-    Args:
-        list_of_arrays: A list of numpy arrays.
-        padding_value: The value to use for padding (default is 0).
-
-    Returns:
-        A numpy array containing the padded arrays.
+    :param max_length: int, length to pad to
+    :param padding_value: int, value to pad with
+    :return: 3d npy array, array of padded to same length arrays
     """
     padded_arrays = [
         np.pad(arr, ((0,0),(0,max_length-arr.shape[1])), 'constant', constant_values=padding_value) if max_length-arr.shape[1] >=0 else arr[:,:max_length]
@@ -204,25 +225,26 @@ def pad_list_of_arrays(list_of_arrays, max_length, padding_value=0):
 def get_start_before_sleep(bp_ss, awake_int):
     """
     gets sleep start time and then returns arrays values starting then
-    :param bp_ss:
+    :param bp_ss: 2d np array, 3 by number of samples, first row is SBP, second row is DBP
+    :param awake_int: int, integer that corresponds to awake, 0 for MESA, 3 for MIMIC
     :return:
     """
     sbp = bp_ss[0]
     dbp = bp_ss[1]
     ss = bp_ss[2]
 
-
     rolling_mode = np.pad(np.apply_along_axis(lambda x: stats.mode(x)[0], 1, sliding_window_view(ss, 30)),(15,14) , 'edge')
 
-    # TODO TAKE ROLLING MEANS
-    # np.pad(np.apply_along_axis(lambda x: np.mean(x), 1, sliding_window_view(bp, 60)), (30, 29), 'edge')
-
     try:
+        # first place where mode over 15 minutes goes from awake to sleep
         sleep_start = np.where(rolling_mode!=awake_int)[0][0] - 15
-        if len(ss[sleep_start:])>=8*60*2:
-            end = sleep_start+8*60*2
+
+        if len(ss[sleep_start:])>=6*60*2:
+            end = sleep_start+6*60*2
         else:
             end = sleep_start + len(ss[sleep_start:])
+
+        # checks for mostly sleep
         if np.sum(ss[sleep_start:end] == awake_int) / len(ss[sleep_start:end]) >= 0.5:
             #print("not sleep")
             return np.array([[], [], []])
@@ -237,6 +259,11 @@ def get_start_before_sleep(bp_ss, awake_int):
     return after_sleep_bp_ss
 
 def mean_zero(start_before_sleep_arrays):
+    """
+    :param start_before_sleep_arrays: list of np arrays, bp_ss's starting after sleep start times
+    :return: list of np arrays, bp_ss's mean zeroed starting after sleep start times
+    """
+    # find means of sbp and dbp and subtract from values
     start_before_sleep_arrays_m0 = []
     for arr in start_before_sleep_arrays:
         sbp_mean = np.nanmean(arr[0])
@@ -248,34 +275,69 @@ def mean_zero(start_before_sleep_arrays):
     return start_before_sleep_arrays_m0
 
 
-def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii):
+def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses):
     """
-    gets time series features for all data
-    :param data_dictionary:
-    :param labels:
+    :param patient_ids: list of strs, patient_ids
+    :param start_before_sleep_arrays: list of np arrays, bp_ss's starting after sleep start times
+    :param labels: bool, whether to include labels or not
+    :param min_num_hours: int, minimum number of hours to include
+    :param fixed_block_hours: int, number of hours to zero pad to, must be greater than or equal to min_num_hours
+    :param diagnoses: pd df, diagnoses.csv pd df
     :return:
     """
+    # checks constraint
+    if min_num_hours > fixed_block_hours:
+        return "fixed_block_hours must be greater than or equal to min_num_hours"
 
+    
     has_min_hours = np.array([len(arr[0]) for arr in start_before_sleep_arrays]) > min_num_hours*60*2
-
     # zero pad / cut off for a minimum hour block
     X = pad_list_of_arrays(start_before_sleep_arrays, fixed_block_hours*60*2)
     X = X[has_min_hours]
 
+    # drops instances with nan values
     nan_mask = np.isnan(X).any(axis=(1,2))
     X = X[~nan_mask]
 
-
-    #new_patient_ids = patient_ids[has_min_hours][~nan_mask]
     new_patient_ids = np.array(patient_ids)[has_min_hours][~nan_mask]
 
+    # labels handling
     if labels:
-        y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses_leadii)
+        y = mimic_diagnoses.get_patient_labels(patient_ids,diagnoses)
         return X,y[has_min_hours][~nan_mask], new_patient_ids
     else:
         return X, new_patient_ids
 
+def get_features(patient_ids, start_before_sleep_arrays, pipeline, summary, labels, demographics, patients=None, admissions=None, diagnoses=None, min_num_hours=8, fixed_block_hours=8):
+    """
+    :param patient_ids: list of strs, list of patient ids
+    :param start_before_sleep_arrays: list of np arrays, bp_ss's starting after sleep start times
+    :param pipeline: str, either 'MESA' or 'MIMIC'
+    :param summary: bool, whether to do summary statistics or not
+    :param labels: bool, whether to include labels or not
+    :param demographics: bool, whether to include demographics or not for summary statistics
+    :param patients: pd df, patients.csv pd df
+    :param admissions: pd df, admissions.csv pd df
+    :param diagnoses: pd df, diagnoses.csv pd df
+    :param min_num_hours: int, minimum number of hours to include
+    :param fixed_block_hours: int, number of hours to zero pad to, must be greater than or equal to min_num_hours
+    :return: 2d or 3d np arrays, features to input into a model
+    """
+    if summary:
+        features = get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours, patients, admissions, diagnoses)
+    else:
+        if pipeline == 'MIMIC':
+            features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours, diagnoses)
+        elif pipeline == 'MESA':
+            features = get_time_series_features(patient_ids, start_before_sleep_arrays, False, min_num_hours,fixed_block_hours, None)
 
+    if labels:
+        # features, labels, corresponding patient ids
+        return features[0], features[1], features[2]
+    else:
+        # features, corresponding patient ids
+        return features[0], features[1]
+    
 def load_preprocessing_data():
     """
     Loads and returns preprocessed data.
@@ -321,28 +383,3 @@ def load_preprocessing_data():
                                  diagnoses)
 
     return X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
-
-
-def get_features(patient_ids, start_before_sleep_arrays, pipeline, summary, labels, demographics, patients, admissions, diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):
-    """
-    gets features for all data
-    :param data_dictionary:
-    :param summary: bool, true if summary statistics, false if time series
-    :param labels: if returning labels or not
-    :param demographics: if returning demographics or not
-    :return:
-    """
-    if summary:
-        features = get_summary_features(patient_ids, start_before_sleep_arrays, labels, demographics, min_num_hours, patients, admissions,diagnoses_leadii)
-    else:
-        if pipeline == 'MIMIC':
-            features = get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii)
-        elif pipeline == 'MESA':
-            features = get_time_series_features(patient_ids, start_before_sleep_arrays, False, min_num_hours,fixed_block_hours, None)
-
-    if labels:
-        # features, labels, corresponding patient ids
-        return features[0], features[1], features[2]
-    else:
-        # features, corresponding patient ids
-        return features[0], features[1]
