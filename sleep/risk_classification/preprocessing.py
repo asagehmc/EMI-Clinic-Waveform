@@ -9,6 +9,7 @@ import pandas as pd
 import importlib
 
 import mimic_diagnoses
+from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
 importlib.reload(mimic_diagnoses)
 
 def get_aligned_ss_and_bp_one_instance(patient_data_path,patient_id,admissions_leadii):
@@ -60,7 +61,7 @@ def get_aligned_ss_and_bp(admissions_leadii):
     of sleep stage
     :return:
     """
-    data_path = "/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
+    data_path = "/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/data/fixed_patients"
 
     data_dictionary = {}
     for patient_subset in os.listdir(data_path):
@@ -219,6 +220,17 @@ def get_start_before_sleep(bp_ss):
 
     return after_sleep_bp_ss
 
+def mean_zero(start_before_sleep_arrays):
+    start_before_sleep_arrays_m0 = []
+    for arr in start_before_sleep_arrays:
+        sbp_mean = np.nanmean(arr[0])
+        dbp_mean = np.nanmean(arr[1])
+        start_before_sleep_arrays_m0 += [np.array([[val - sbp_mean for val in arr[0]],
+                                                   [val - dbp_mean for val in arr[1]],
+                                                   arr[2]])]
+
+    return start_before_sleep_arrays_m0
+
 
 def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min_num_hours, fixed_block_hours,diagnoses_leadii):
     """
@@ -248,7 +260,7 @@ def get_time_series_features(patient_ids, start_before_sleep_arrays, labels, min
         return X, new_patient_ids
 
 
-def load_preprocessing_data(bp_only=False):
+def load_preprocessing_data():
     """
     Loads and returns preprocessed data.
 
@@ -263,16 +275,15 @@ def load_preprocessing_data(bp_only=False):
     Returns:
         Tuple: (X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts)
     """
-    from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
     admissions_leadii = load_admissions_leadii()
 
     # Load the additional necessary DataFrames.
     patients = pd.read_csv(
-        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/PATIENTS.csv')
+        '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/PATIENTS.csv')
     admissions = pd.read_csv(
-        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv')
+        '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/ADMISSIONS.csv')
     diagnoses = pd.read_csv(
-        '/Users/shreyabalaji/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/DIAGNOSES_ICD.csv')
+        '/Users/lydiastone/PycharmProjects/EIT-Clinic-Waveform/sleep/risk_classification/mimic_data/DIAGNOSES_ICD.csv')
 
     # Ensure that the diagnoses DataFrame gets the ICD10_CODE column.
     add_icd_10_code_to_diagnoses(diagnoses)
@@ -292,27 +303,7 @@ def load_preprocessing_data(bp_only=False):
     X_ts, y_ts, _ = get_features(patient_ids, start_before_sleep_arrays, False, True, False, patients, admissions,
                                  diagnoses)
 
-    if bp_only:
-        # drop sleep-stage columns 3,4,5
-        X_bp = X_sum[:, :3]
-        X_bp_dem = X_sum_dem[:, [0, 1, 2, 6, 7]]
-        return X_bp, y_sum, X_bp_dem, y_sum_dem, X_ts, y_ts
-
     return X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts
-
-
-load_full_data = load_preprocessing_data
-
-def load_bp_only_data():
-    """
-    Returns only the BP-derived summary features and labels:
-      - X_bp: array of shape (n_samples, 3) [sbp_mean, dbp_mean, bp_range]
-      - y_sum: corresponding label array
-    """
-    X_sum, y_sum, _, _, _, _ = load_full_data(False)
-    # remove just SBP_mean, DBP_mean, BP_range
-    X_bp = X_sum[:, :3]
-    return X_bp, y_sum
 
 
 def get_features(patient_ids, start_before_sleep_arrays, summary, labels, demographics, patients, admissions, diagnoses_leadii, min_num_hours=8, fixed_block_hours=8):

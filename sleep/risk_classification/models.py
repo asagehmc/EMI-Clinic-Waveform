@@ -44,7 +44,11 @@ def cross_validate_summary_model(X, y, model_type):
 def get_oversampler(method='smote', **kwargs):
     """
     Returns an oversampling object based on the provided method.
-    Supports smote and borderline-smote.
+
+    :param method: str, name of oversampling technique ("smote" or "borderline_smote").
+    :param kwargs: Additional keyword arguments forwarded to the oversampler.
+    :return: An imblearn oversampler instance.
+    :raises ValueError: If the specified method is unsupported.
     """
     method = method.lower()
     if method == 'smote':
@@ -211,6 +215,17 @@ def score_summary_model_with_smote_extended(X, y, model_type, test_size=0.2, ove
 # Running the above extended evaluation several times and average results.
 def compare_averaged_extended_evaluations(X, y, model_type="rfc", test_size=0.2, oversampling_method="smote",
                                           num_runs=10):
+    """
+    Runs multiple extended evaluations and averages the results over several runs.
+
+    :param X: Feature matrix.
+    :param y: Labels.
+    :param model_type: str, currently supports only "rfc".
+    :param test_size: float, fraction of data reserved for the test split (default is 0.2).
+    :param oversampling_method: str, oversampling technique ("smote" or "borderline_smote").
+    :param num_runs: int, number of evaluation runs to average.
+    :return: Array of averaged accuracy metrics.
+    """
     results = []
     for _ in range(num_runs):
         res = score_summary_model_with_smote_extended(X, y, model_type, test_size=test_size,
@@ -222,6 +237,12 @@ def compare_averaged_extended_evaluations(X, y, model_type="rfc", test_size=0.2,
 
 # Clustering Model Training & Accuracy Computation
 def calculate_features(X):
+    """
+    Transposes input data and performs time2feat feature extraction.
+
+    :param X: 3D array shaped (patients, variables, timestamps).
+    :return: Pandas DataFrame of extracted features.
+    """
     # transpose from (patients, variables, timestamps) to (patients, timestamps, variables)
     X = np.transpose(X, (0, 2, 1))
 
@@ -232,10 +253,14 @@ def calculate_features(X):
 
 def train_t2f_model_from_calculated_features(X_feats, transform_type, model_type, y=None, training_sampling=0):
     """
-    :param X_feats: calculated MTS features,
-    :param transform_type: str
-    :param model_type:
-    :return:
+    Applies feature selection and clustering on precomputed features in unsupervised or semi-supervised mode.
+
+    :param X_feats: DataFrame of extracted features.
+    :param transform_type: str, transformation type for clustering.
+    :param model_type: str, clustering algorithm type.
+    :param y: Optional array of true labels for semi-supervised mode.
+    :param training_sampling: float, fraction of labeled samples to use (default is 0).
+    :return: Tuple (predicted labels, clustering model, selected feature list).
     """
     if y is None:
         labels = {} # unsupervised mode
@@ -493,107 +518,107 @@ if __name__ == "__main__":
     from preprocessing import load_preprocessing_data, load_full_data, load_bp_only_data
     from models import cross_validate_summary_model, cross_validate_summary_model_with_smote
 
-    # # Load summary and time-series data
-    # X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts = load_preprocessing_data()
-    #
-    # # Incorporate the imbalance check for y_sum
-    # unique, counts = np.unique(y_sum, return_counts=True)
-    # total_samples = len(y_sum)
-    # print("Class distribution in y_sum:")
-    # for label, count in zip(unique, counts):
-    #     percentage = count / total_samples * 100
-    #     print(f"Class {label}: {count} samples ({percentage:.2f}%)")
-    # if len(counts) == 2:
-    #     imbalance_ratio = max(counts) / min(counts)
-    #     print(f"Imbalance ratio (majority / minority): {imbalance_ratio:.2f}")
-    #
-    # # Applying SMOTE to the summary data (X_sum, y_sum)
-    # oversampler = get_oversampler('smote')
-    # X_sum_res, y_sum_res = oversampler.fit_resample(X_sum, y_sum)
-    #
-    # # Printing the class distribution and imbalance ratio after SMOTE is applied
-    # unique_res, counts_res = np.unique(y_sum_res, return_counts=True)
-    # total_samples_res = len(y_sum_res)
-    # print("\nClass distribution in y_sum after SMOTE:")
-    # for label, count in zip(unique_res, counts_res):
-    #     percentage = count / total_samples_res * 100
-    #     print(f"Class {label}: {count} samples ({percentage:.2f}%)")
-    # if len(counts_res) == 2:
-    #     imbalance_ratio_res = max(counts_res) / min(counts_res)
-    #     print(f"Imbalance ratio (majority / minority) after SMOTE: {imbalance_ratio_res:.2f}")
-    #
-    #
-    # # Varied additional oversampling to see impacts on RFC + SMOTE accuracies
-    # extras = [15, 20, 25, 30]  # extra oversampling numbers
-    #
-    # X_full, y_full, *rest = load_full_data()  # returns X, y, X_dem, y_dem, X_ts, y_ts
-    #
-    # print("\n>>> RFC Baselines <<<")
-    # # Just RFC, no oversampling
-    # cv_plain = cross_validate_summary_model(X_full, y_full, model_type="rfc")
-    # mean_plain = np.mean(cv_plain["test_score"]) * 100
-    # std_plain = np.std(cv_plain["test_score"]) * 100
-    # print(f"RFC (no oversampling)      → Mean CV acc: {mean_plain:5.2f}%  ± {std_plain:4.2f}%")
-    #
-    # # RFC + SMOTE without additional oversampling
-    # cv_sm = cross_validate_summary_model_with_smote(
-    #     X_full, y_full,
-    #     model_type="rfc",
-    #     oversampling_method="smote"
-    # )
-    # mean_sm = np.mean(cv_sm["test_score"]) * 100
-    # std_sm = np.std(cv_sm["test_score"]) * 100
-    # print(f"RFC + SMOTE (default)      → Mean CV acc: {mean_sm:5.2f}%  ± {std_sm:4.2f}%")
-    #
-    # print("\n>>> RFC + SMOTE: extra synthetic samples per class <<<")
-    # # get the original counts per class once
-    # orig_counts = np.bincount(y_full.astype(int))
-    # majority = orig_counts.max()
-    #
-    # for e in extras:
-    #     # balance both classes to (majority + e)
-    #     target_n = majority + e
-    #     sampling_strategy = {0: target_n, 1: target_n}
-    #
-    #     cv = cross_validate_summary_model_with_smote(
-    #         X_full, y_full,
-    #         model_type="rfc",
-    #         oversampling_method="smote",
-    #         sampling_strategy=sampling_strategy
-    #     )
-    #
-    #     mean_acc = np.mean(cv["test_score"]) * 100
-    #     std_acc = np.std(cv["test_score"]) * 100
-    #     print(f"+{e:2d} samples →  Mean CV acc: {mean_acc:5.2f}%  ± {std_acc:4.2f}%")
+    # Load summary and time-series data
+    X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts = load_preprocessing_data()
 
-    #
-    # # Comparing SMOTE vs. Borderline-SMOTE for RFC
-    # oversampling_methods = ['smote', 'borderline_smote']
-    # for method in oversampling_methods:
-    #     print("\n>>> Extended RFC Evaluation using {} over multiple runs <<<".format(method))
-    #     compare_averaged_extended_evaluations(X_sum, y_sum, model_type="rfc", test_size=0.2,
-    #                                           oversampling_method=method, num_runs=10)
-    #
-    # print(">>> Summary Models Comparison (Non-Demographic vs. Demographic) <<<")
-    # compare_summary_models(X_sum, y_sum, X_sum_dem, y_sum_dem)
-    #
-    # print("\n>>> Averaged Summary Models Accuracies <<<")
-    # compare_averages_summary_models(X_sum, y_sum)
-    #
-    # print("\n>>> SMOTE-Based Supervised Model Evaluation <<<")
-    # for model in ["svc", "rfc", "knc"]:
-    #     smote_acc = score_summary_model_with_smote(X_sum, y_sum, model, test_size=0.2, smote_sampling=1.0)
-    #     print(f"SMOTE {model} accuracies: {smote_acc}")
-    #
-    # print("\n>>> Averaged Unsupervised Clustering Accuracies <<<")
-    # unsup_accuracies = compare_averaged_unsupervised_clustering(X_ts, y_ts, num_runs=10)
-    # print("Final Averaged Unsupervised Clustering Accuracies:")
-    # print(unsup_accuracies)
-    #
-    # print("\n>>> Averaged Supervised (Semi-supervised) Clustering Accuracies <<<")
-    # sup_accuracies = compare_averaged_supervised_clustering(X_ts, y_ts, training_sampling=0.2, num_runs=10)
-    # print("Final Averaged Supervised Clustering Accuracies:")
-    # print(sup_accuracies)
+    # Incorporate the imbalance check for y_sum
+    unique, counts = np.unique(y_sum, return_counts=True)
+    total_samples = len(y_sum)
+    print("Class distribution in y_sum:")
+    for label, count in zip(unique, counts):
+        percentage = count / total_samples * 100
+        print(f"Class {label}: {count} samples ({percentage:.2f}%)")
+    if len(counts) == 2:
+        imbalance_ratio = max(counts) / min(counts)
+        print(f"Imbalance ratio (majority / minority): {imbalance_ratio:.2f}")
+
+    # Applying SMOTE to the summary data (X_sum, y_sum)
+    oversampler = get_oversampler('smote')
+    X_sum_res, y_sum_res = oversampler.fit_resample(X_sum, y_sum)
+
+    # Printing the class distribution and imbalance ratio after SMOTE is applied
+    unique_res, counts_res = np.unique(y_sum_res, return_counts=True)
+    total_samples_res = len(y_sum_res)
+    print("\nClass distribution in y_sum after SMOTE:")
+    for label, count in zip(unique_res, counts_res):
+        percentage = count / total_samples_res * 100
+        print(f"Class {label}: {count} samples ({percentage:.2f}%)")
+    if len(counts_res) == 2:
+        imbalance_ratio_res = max(counts_res) / min(counts_res)
+        print(f"Imbalance ratio (majority / minority) after SMOTE: {imbalance_ratio_res:.2f}")
+
+
+    # Varied additional oversampling to see impacts on RFC + SMOTE accuracies
+    extras = [15, 20, 25, 30]  # extra oversampling numbers
+
+    X_full, y_full, *rest = load_full_data()  # returns X, y, X_dem, y_dem, X_ts, y_ts
+
+    print("\n>>> RFC Baselines <<<")
+    # Just RFC, no oversampling
+    cv_plain = cross_validate_summary_model(X_full, y_full, model_type="rfc")
+    mean_plain = np.mean(cv_plain["test_score"]) * 100
+    std_plain = np.std(cv_plain["test_score"]) * 100
+    print(f"RFC (no oversampling)      → Mean CV acc: {mean_plain:5.2f}%  ± {std_plain:4.2f}%")
+
+    # RFC + SMOTE without additional oversampling
+    cv_sm = cross_validate_summary_model_with_smote(
+        X_full, y_full,
+        model_type="rfc",
+        oversampling_method="smote"
+    )
+    mean_sm = np.mean(cv_sm["test_score"]) * 100
+    std_sm = np.std(cv_sm["test_score"]) * 100
+    print(f"RFC + SMOTE (default)      → Mean CV acc: {mean_sm:5.2f}%  ± {std_sm:4.2f}%")
+
+    print("\n>>> RFC + SMOTE: extra synthetic samples per class <<<")
+    # get the original counts per class once
+    orig_counts = np.bincount(y_full.astype(int))
+    majority = orig_counts.max()
+
+    for e in extras:
+        # balance both classes to (majority + e)
+        target_n = majority + e
+        sampling_strategy = {0: target_n, 1: target_n}
+
+        cv = cross_validate_summary_model_with_smote(
+            X_full, y_full,
+            model_type="rfc",
+            oversampling_method="smote",
+            sampling_strategy=sampling_strategy
+        )
+
+        mean_acc = np.mean(cv["test_score"]) * 100
+        std_acc = np.std(cv["test_score"]) * 100
+        print(f"+{e:2d} samples →  Mean CV acc: {mean_acc:5.2f}%  ± {std_acc:4.2f}%")
+
+
+    # Comparing SMOTE vs. Borderline-SMOTE for RFC
+    oversampling_methods = ['smote', 'borderline_smote']
+    for method in oversampling_methods:
+        print("\n>>> Extended RFC Evaluation using {} over multiple runs <<<".format(method))
+        compare_averaged_extended_evaluations(X_sum, y_sum, model_type="rfc", test_size=0.2,
+                                              oversampling_method=method, num_runs=10)
+
+    print(">>> Summary Models Comparison (Non-Demographic vs. Demographic) <<<")
+    compare_summary_models(X_sum, y_sum, X_sum_dem, y_sum_dem)
+
+    print("\n>>> Averaged Summary Models Accuracies <<<")
+    compare_averages_summary_models(X_sum, y_sum)
+
+    print("\n>>> SMOTE-Based Supervised Model Evaluation <<<")
+    for model in ["svc", "rfc", "knc"]:
+        smote_acc = score_summary_model_with_smote(X_sum, y_sum, model, test_size=0.2, smote_sampling=1.0)
+        print(f"SMOTE {model} accuracies: {smote_acc}")
+
+    print("\n>>> Averaged Unsupervised Clustering Accuracies <<<")
+    unsup_accuracies = compare_averaged_unsupervised_clustering(X_ts, y_ts, num_runs=10)
+    print("Final Averaged Unsupervised Clustering Accuracies:")
+    print(unsup_accuracies)
+
+    print("\n>>> Averaged Supervised (Semi-supervised) Clustering Accuracies <<<")
+    sup_accuracies = compare_averaged_supervised_clustering(X_ts, y_ts, training_sampling=0.2, num_runs=10)
+    print("Final Averaged Supervised Clustering Accuracies:")
+    print(sup_accuracies)
 
     # Comparing Accuracies for just using BP versus using BP + Sleep Stage Inputs
 
