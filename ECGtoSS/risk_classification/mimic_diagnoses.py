@@ -91,19 +91,19 @@ def get_patient_labels(patient_ids,diagnoses):
                  'I213', 'I214', 'I22', 'I220', 'I221', 'I222', 'I228', 'I229', 'I23', 'I230', 'I231', 'I232', 'I233',
                  'I234', 'I235', 'I236', 'I237', 'I238', 'I252']
     CVD_codes = ['I63', 'G450', 'G451', 'G452', 'G454', 'G458', 'G459']
-    PAD_codes = ['I70201', 'I70202', 'I70203', 'I70208', 'I70209', 'I70211', 'I70212', 'I70213', 'I70218', 'I70219', 
-                 'I70221', 'I70222', 'I70223', 'I70228', 'I70229', 'I70231', 'I70231', 'I70232', 'I70232', 'I70233', 
-                 'I70233', 'I70234', 'I70234', 'I70235', 'I70235', 'I70238', 'I70238', 'I70239', 'I70239', 'I70241', 
-                 'I70241', 'I70242', 'I70242', 'I70243', 'I70243', 'I70244', 'I70244', 'I70245', 'I70245', 'I70248', 
-                 'I70248', 'I70249', 'I70249', 'I7025', 'I7025', 'I70261', 'I70262', 'I70263', 'I70268', 'I70269', 
+    PAD_codes = ['I70201', 'I70202', 'I70203', 'I70208', 'I70209', 'I70211', 'I70212', 'I70213', 'I70218', 'I70219',
+                 'I70221', 'I70222', 'I70223', 'I70228', 'I70229', 'I70231', 'I70231', 'I70232', 'I70232', 'I70233',
+                 'I70233', 'I70234', 'I70234', 'I70235', 'I70235', 'I70238', 'I70238', 'I70239', 'I70239', 'I70241',
+                 'I70241', 'I70242', 'I70242', 'I70243', 'I70243', 'I70244', 'I70244', 'I70245', 'I70245', 'I70248',
+                 'I70248', 'I70249', 'I70249', 'I7025', 'I7025', 'I70261', 'I70262', 'I70263', 'I70268', 'I70269',
                  'I70291', 'I70292', 'I70293', 'I70298', 'I70299']
-    
+
     # gets integer patient ids to match the pandas dfs
     patient_ids = [int(pid) for pid in patient_ids]
-    
+
     # gets diagnoses for the patients
     model_pat_diags = diagnoses.loc[diagnoses.SUBJECT_ID.isin(patient_ids)]
-    
+
     # indices of disease patients
     model_CAD_patients_id = model_pat_diags.loc[
         model_pat_diags.ICD10_CODE.apply(lambda x: x in CAD_codes)].SUBJECT_ID.unique()
@@ -115,7 +115,7 @@ def get_patient_labels(patient_ids,diagnoses):
     # str patient ids if they have any of the diseases
     risk_patients = [str(pid).zfill(6) for pid in
                      np.unique(np.concatenate((model_PAD_patients_id, model_CVD_patients_id, model_CAD_patients_id)))]
-    
+
     # specific disease string patient ids if needed
     cad_patients = [str(pid).zfill(6) for pid in model_CAD_patients_id]
     cvd_patients = [str(pid).zfill(6) for pid in model_CVD_patients_id]
@@ -238,13 +238,13 @@ def make_testing_dataframe(patient_ids, y_pred, y_true,patients,admissions,ethni
     """
     # get int versions of patient ids
     pids_ints = [int(pid) for pid in patient_ids]
-    
+
     # get demographic information
     ethnicities_for_model_patients = ethnicities_for_pids(pids_ints,ethnicities)
     age_sex = np.array([basic_info(pid,patients,admissions) for pid in pids_ints])
     age = age_sex[:,0]
     sex = age_sex[:,1]
-    
+
     # make pd df
     df = pd.DataFrame({'PATIENT_ID':pids_ints, 'Y_PRED':y_pred, 'Y_TRUE':y_true,
                        'ETHNICITY':ethnicities_for_model_patients, 'AGE':age, 'SEX':sex})

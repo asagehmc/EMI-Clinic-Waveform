@@ -13,7 +13,7 @@ from pandas.errors import InvalidIndexError
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import cross_validate, train_test_split, GridSearchCV
+from sklearn.model_selection import cross_validate, train_test_split, GridSearchCV, RepeatedStratifiedKFold
 
 # Import SMOTE, BorderlineSMOTE, and Pipeline from imblearn for oversampling based on class imbalance
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
@@ -49,7 +49,11 @@ def cross_validate_summary_model(X, y, model_type):
 def get_oversampler(method='smote', **kwargs):
     """
     Returns an oversampling object based on the provided method.
-    Supports smote and borderline-smote.
+
+    :param method: str, name of oversampling technique ("smote" or "borderline_smote").
+    :param kwargs: Additional keyword arguments forwarded to the oversampler.
+    :return: An imblearn oversampler instance.
+    :raises ValueError: If the specified method is unsupported.
     """
     method = method.lower()
     if method == 'smote':
@@ -60,7 +64,7 @@ def get_oversampler(method='smote', **kwargs):
         raise ValueError(f"Unsupported oversampling method: {method}")
 
 
-def cross_validate_summary_model_with_smote(X, y, model_type, oversampling_method="smote"):
+def cross_validate_summary_model_with_smote(X, y, model_type, oversampling_method="smote", **smote_kwargs):
     """
     Runs 5-fold cross-validation using a pipeline that applies SMOTE on each training fold.
 
@@ -68,6 +72,7 @@ def cross_validate_summary_model_with_smote(X, y, model_type, oversampling_metho
     :param y: Labels.
     :param model_type: str, one of "svc", "rfc", or "knc".
     :param smote_sampling: float, SMOTE sampling strategy.
+    :param **smote_kwargs: Additional keyword arguments that can be passed to SMOTE.
     :return: Cross-validation scores.
     """
     if model_type == "svc":
@@ -79,7 +84,7 @@ def cross_validate_summary_model_with_smote(X, y, model_type, oversampling_metho
     else:
         raise ValueError("Model type not supported")
 
-    oversampler = get_oversampler(oversampling_method)
+    oversampler = get_oversampler(oversampling_method, **smote_kwargs)
     pipe = Pipeline([
         ("oversampler", oversampler),
         ("clf", classifier)
@@ -233,6 +238,17 @@ def score_summary_model_with_smote_extended(X, y, model_type, test_size=0.2, ove
 # Running the above extended evaluation several times and average results.
 def compare_averaged_extended_evaluations(X, y, model_type="rfc", test_size=0.2, oversampling_method="smote",
                                           num_runs=10):
+    """
+    Runs multiple extended evaluations and averages the results over several runs.
+
+    :param X: Feature matrix.
+    :param y: Labels.
+    :param model_type: str, currently supports only "rfc".
+    :param test_size: float, fraction of data reserved for the test split (default is 0.2).
+    :param oversampling_method: str, oversampling technique ("smote" or "borderline_smote").
+    :param num_runs: int, number of evaluation runs to average.
+    :return: Array of averaged accuracy metrics.
+    """
     results = []
     for _ in range(num_runs):
         res = score_summary_model_with_smote_extended(X, y, model_type, test_size=test_size,
@@ -245,8 +261,10 @@ def compare_averaged_extended_evaluations(X, y, model_type="rfc", test_size=0.2,
 # Clustering Model Training & Accuracy Computation
 def calculate_features(X):
     """
-    :param X: 3d np array, time series features
-    :return: pd df, pandas dataframe of the extracted features using tsfresh package
+    Transposes input data and performs time2feat feature extraction.
+
+    :param X: 3D array shaped (patients, variables, timestamps).
+    :return: Pandas DataFrame of extracted features.
     """
     # transpose from (patients, variables, timestamps) to (patients, timestamps, variables)
     X = np.transpose(X, (0, 2, 1))
@@ -258,13 +276,14 @@ def calculate_features(X):
 
 def train_t2f_model_from_calculated_features(X_feats, transform_type, model_type, y=None, training_sampling=0):
     """
-    :param X_feats: calculated MTS features,
-    :param transform_type: str, one of "std", "minmax", or "robust"
-    :param model_type: str, one of "Hierarchical", "KMeans", or "Spectral"
-    :param y: 1d np array, default is None, instance labels
-    :return: y_pred, np array, predicted labels
-             model, sklearn clustering model
-             top_feats, list of strs, selected features
+    Applies feature selection and clustering on precomputed features in unsupervised or semi-supervised mode.
+
+    :param X_feats: DataFrame of extracted features.
+    :param transform_type: str, transformation type for clustering.
+    :param model_type: str, clustering algorithm type.
+    :param y: Optional array of true labels for semi-supervised mode.
+    :param training_sampling: float, fraction of labeled samples to use (default is 0).
+    :return: Tuple (predicted labels, clustering model, selected feature list).
     """
     if y is None:
         labels = {} # unsupervised mode
@@ -473,7 +492,7 @@ def compare_unsupervised_clustering_MESA(X_feats, n_clusters=2):
             y_preds.append(y_pred)
 
     y_preds = np.array(y_preds)
-    
+
     return y_preds
 
 
@@ -574,7 +593,9 @@ def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_samplin
 
 # # Loading Data & Comparing Models
 # if __name__ == "__main__":
-#     from preprocessing import load_preprocessing_data
+#     import matplotlib.pyplot as plt
+#     from preprocessing import load_preprocessing_data, load_full_data, load_bp_only_data
+#     from models import cross_validate_summary_model, cross_validate_summary_model_with_smote
 #
 #     # Load summary and time-series data
 #     X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts = load_preprocessing_data()
@@ -605,6 +626,51 @@ def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_samplin
 #         imbalance_ratio_res = max(counts_res) / min(counts_res)
 #         print(f"Imbalance ratio (majority / minority) after SMOTE: {imbalance_ratio_res:.2f}")
 #
+#
+#     # Varied additional oversampling to see impacts on RFC + SMOTE accuracies
+#     extras = [15, 20, 25, 30]  # extra oversampling numbers
+#
+#     X_full, y_full, *rest = load_full_data()  # returns X, y, X_dem, y_dem, X_ts, y_ts
+#
+#     print("\n>>> RFC Baselines <<<")
+#     # Just RFC, no oversampling
+#     cv_plain = cross_validate_summary_model(X_full, y_full, model_type="rfc")
+#     mean_plain = np.mean(cv_plain["test_score"]) * 100
+#     std_plain = np.std(cv_plain["test_score"]) * 100
+#     print(f"RFC (no oversampling)      → Mean CV acc: {mean_plain:5.2f}%  ± {std_plain:4.2f}%")
+#
+#     # RFC + SMOTE without additional oversampling
+#     cv_sm = cross_validate_summary_model_with_smote(
+#         X_full, y_full,
+#         model_type="rfc",
+#         oversampling_method="smote"
+#     )
+#     mean_sm = np.mean(cv_sm["test_score"]) * 100
+#     std_sm = np.std(cv_sm["test_score"]) * 100
+#     print(f"RFC + SMOTE (default)      → Mean CV acc: {mean_sm:5.2f}%  ± {std_sm:4.2f}%")
+#
+#     print("\n>>> RFC + SMOTE: extra synthetic samples per class <<<")
+#     # get the original counts per class once
+#     orig_counts = np.bincount(y_full.astype(int))
+#     majority = orig_counts.max()
+#
+#     for e in extras:
+#         # balance both classes to (majority + e)
+#         target_n = majority + e
+#         sampling_strategy = {0: target_n, 1: target_n}
+#
+#         cv = cross_validate_summary_model_with_smote(
+#             X_full, y_full,
+#             model_type="rfc",
+#             oversampling_method="smote",
+#             sampling_strategy=sampling_strategy
+#         )
+#
+#         mean_acc = np.mean(cv["test_score"]) * 100
+#         std_acc = np.std(cv["test_score"]) * 100
+#         print(f"+{e:2d} samples →  Mean CV acc: {mean_acc:5.2f}%  ± {std_acc:4.2f}%")
+#
+#
 #     # Comparing SMOTE vs. Borderline-SMOTE for RFC
 #     oversampling_methods = ['smote', 'borderline_smote']
 #     for method in oversampling_methods:
@@ -632,3 +698,84 @@ def get_selected_features_and_scores_over_n_runs(n, X_feats, y, training_samplin
 #     sup_accuracies = compare_averaged_supervised_clustering(X_ts, y_ts, training_sampling=0.2, num_runs=10)
 #     print("Final Averaged Supervised Clustering Accuracies:")
 #     print(sup_accuracies)
+#
+#     # Comparing Accuracies for just using BP versus using BP + Sleep Stage Inputs
+#
+#     rkf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=42)
+#
+#
+#     def get_X_y(loader):
+#         vals = loader()
+#         return vals[0], vals[1]
+#
+#
+#     models = {
+#         "SVC": SVC(),
+#         "RFC": RandomForestClassifier(),
+#         "KNC": KNeighborsClassifier()
+#     }
+#
+#     scenarios = [
+#         ("BP + Sleep Stages", load_full_data),
+#         ("BP Only", load_bp_only_data)
+#     ]
+#
+#     # Boxplot comparing all three classifiers (SVC, RFC, KNC)
+#     fig1, ax1 = plt.subplots(figsize=(8, 4))
+#     box_data, labels1 = [], []
+#
+#     for scen_name, loader in scenarios:
+#         X, y = get_X_y(loader)
+#         for name, clf in models.items():
+#             scores = cross_validate(clf, X, y, cv=rkf, scoring="accuracy", n_jobs=-1)["test_score"] * 100
+#             mean, std = scores.mean(), scores.std()
+#             print(f"{name} ({scen_name}):  Mean = {mean:.2f}%  ± {std:.2f}%")
+#             box_data.append(scores)
+#             labels1.append(f"{name}\n({scen_name})")
+#
+#     ax1.boxplot(box_data, labels=labels1, patch_artist=True, showfliers=False)
+#     ax1.set_title("50×5‑Fold CV Accuracies: SVC / RFC / KNC")
+#     ax1.set_ylabel("Accuracy (%)")
+#     ax1.grid(axis="y", linestyle="--", alpha=0.7)
+#     plt.xticks(rotation=30, ha="right")
+#     plt.tight_layout()
+#
+#     # Boxplot comparing RFC + SMOTE
+#     fig2, ax2 = plt.subplots(figsize=(6, 4))
+#     box_data_sm, labels2 = [], []
+#
+#     for scen_name, loader in scenarios:
+#         X, y = get_X_y(loader)
+#         pipe = Pipeline([("smote", SMOTE(random_state=42)), ("rfc", RandomForestClassifier())])
+#         scores = cross_validate(pipe, X, y, cv=rkf, scoring="accuracy", n_jobs=-1)["test_score"] * 100
+#         mean, std = scores.mean(), scores.std()
+#         print(f"RFC+SMOTE ({scen_name}):  Mean = {mean:.2f}%  ± {std:.2f}%")
+#         box_data_sm.append(scores)
+#         labels2.append(scen_name)
+#
+#     ax2.boxplot(box_data_sm, labels=labels2, patch_artist=True, showfliers=False)
+#     ax2.set_title("50×5‑Fold CV: RFC + SMOTE")
+#     ax2.set_ylabel("Accuracy (%)")
+#     ax2.grid(axis="y", linestyle="--", alpha=0.7)
+#     plt.tight_layout()
+#
+#     # Boxplot comparing RFC + Borderline‑SMOTE
+#     fig3, ax3 = plt.subplots(figsize=(6, 4))
+#     box_data_bl, labels3 = [], []
+#
+#     for scen_name, loader in scenarios:
+#         X, y = get_X_y(loader)
+#         pipe = Pipeline([("smote", BorderlineSMOTE(random_state=42)), ("rfc", RandomForestClassifier())])
+#         scores = cross_validate(pipe, X, y, cv=rkf, scoring="accuracy", n_jobs=-1)["test_score"] * 100
+#         mean, std = scores.mean(), scores.std()
+#         print(f"RFC+Borderline‑SMOTE ({scen_name}):  Mean = {mean:.2f}%  ± {std:.2f}%")
+#         box_data_bl.append(scores)
+#         labels3.append(scen_name)
+#
+#     ax3.boxplot(box_data_bl, labels=labels3, patch_artist=True, showfliers=False)
+#     ax3.set_title("50×5‑Fold CV: RFC + Borderline‑SMOTE")
+#     ax3.set_ylabel("Accuracy (%)")
+#     ax3.grid(axis="y", linestyle="--", alpha=0.7)
+#     plt.tight_layout()
+#
+#     plt.show()

@@ -16,6 +16,7 @@ import pandas as pd
 import importlib
 
 import mimic_diagnoses
+from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
 importlib.reload(mimic_diagnoses)
 
 def get_aligned_ss_and_bp_one_instance(patient_data_path, pipeline='MESA',patient_id=None,admissions=None):
@@ -359,7 +360,6 @@ def load_preprocessing_data():
     Returns:
         Tuple: (X_sum, y_sum, X_sum_dem, y_sum_dem, X_ts, y_ts)
     """
-    from mimic_diagnoses import load_admissions_leadii, add_icd_10_code_to_diagnoses
     admissions_leadii = load_admissions_leadii()
 
     # Load the additional necessary DataFrames.
