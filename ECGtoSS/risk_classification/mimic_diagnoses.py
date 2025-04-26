@@ -5,6 +5,7 @@ Description: This file contains functions for accessing MIMIC clinical data in r
             the waveform data using patient ids
 """
 
+import os
 import pandas as pd
 import numpy as np
 import json
