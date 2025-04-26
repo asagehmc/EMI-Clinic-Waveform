@@ -11,19 +11,15 @@ from PPGtoBP.download_nsrr import get_record_ids
 from download_nsrr import get_data_for_patient
 
 
-def check_available_signals(available_signals):
-    """
-    Checks to see if the signals we are looking for are available for a specific patient
-    :param available_signals: the list of available signals
-    :return: boolean representing if the desired patient is available
-    """
-
-    if "II" in available_signals and "ABP" in available_signals and "PLETH" in available_signals:
-        return True
-    return False
-
-
 def extract_ppg_episodes(ppg, fs=125, episode_len=10, step_len=5):
+    """
+    Converts ppg signal into blocks for processing (converted to 125hz)
+    :param ppg: signal to block
+    :param fs: frequency of incoming signal
+    :param episode_len: the length of the block in seconds
+    :param step_len: the interval of time between blocks
+    :return:
+    """
     FS = fs
     EPISODE_LEN = episode_len
     STEP_LEN = step_len
@@ -55,11 +51,16 @@ def extract_ppg_episodes(ppg, fs=125, episode_len=10, step_len=5):
                 'ppg': ppg_seg,
                 'start_idx': start
             })
-
     return episodes
 
 
 def get_sys_dias_from_signal_seg(signal_seg, distance_btwn_peaks):
+    """
+    Calculate systolic and diastolic BP from peaks/troughs in the waveform
+    :param signal_seg: segment of data to process
+    :param distance_btwn_peaks: min distance between peaks (to avoid local maxes)
+    :return: systolic & diastolic bp for the segment
+    """
     peaks, _ = find_peaks(signal_seg, distance=distance_btwn_peaks)
     troughs, _ = find_peaks(-signal_seg, distance=distance_btwn_peaks)
 
@@ -74,8 +75,6 @@ def process_data(record_id, record_data):
     Takes a patient record and down processes it to be fed into the model
     :param record_id: the ID that we are down processing
     :param record_data: the record data to be processed
-
-    :return:
     """
     # values in seconds
     episode_len = 10  # how long each episode is
@@ -90,6 +89,7 @@ def process_data(record_id, record_data):
     diastolic_preds = []
 
     n_processed = 0
+    # step through the blocks and predict bp, save to JSON
     for episode_obj in bp_episodes:
         ppg = episode_obj["ppg"]
         normalized_ppg = normalize_min_max(ppg)
@@ -128,6 +128,9 @@ def process_data(record_id, record_data):
 
 
 def main():
+    """
+        Runs through each patient record and process, output json for predicted BP
+    """
     record_ids = get_record_ids()
     start = 1213
     start_idx = record_ids.index(start)

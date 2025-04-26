@@ -9,6 +9,12 @@ import xmltodict
 
 
 def get_data_for_patient(id, nsrr_path="nsrr"):
+    """
+    download patient edf, read file and get sleep annotations, ppg signal out
+    :param id: the record id to read
+    :param nsrr_path: the path to the patient data to download
+    :return: object containing ppg, patient data, and sleep staging data
+    """
     signals_path = f"mesa/polysomnography/edfs/mesa-sleep-{id:04}.edf"
     annotations_path = f"mesa/polysomnography/annotations-events-nsrr/mesa-sleep-{id:04}-nsrr.xml"
 
@@ -40,6 +46,11 @@ def get_data_for_patient(id, nsrr_path="nsrr"):
 
 
 def get_ith_patient_data(patient_id):
+    """
+    read the MESA sleep data sheet and pull out/parse the selected elements
+    :param patient_id: the patient ID as a number
+    :return: an object containing parsed elements from the patient data table
+    """
     ints = ["race1c", "gender1", "sleepage5c"]
     floats = ["htcm5", "wtlb5", "bmi5c", "nsrr_ahi_hp3r_aasm15"]
     strings = ["nsrr_age_gt89"]
@@ -76,6 +87,11 @@ def get_ith_patient_data(patient_id):
 
 
 def download_data(path, nsrr_exe):
+    """
+    Downloads the edf and sleep annotation files for the given patient path
+    :param path: patient path to download
+    :param nsrr_exe: the nsrr gem path
+    """
     if not os.path.exists(path):
         with open("token.txt", "r") as f:
             nsrr_token = f.readline().strip()
@@ -95,7 +111,11 @@ def download_data(path, nsrr_exe):
 
 
 def annotation_to_ss_epochs(annotations):
-
+    """
+    Converts sleep stage annotations to time steps of 30s intervals
+    :param annotations: the annotation object to convert
+    :return: an array of sleep stage values
+    """
     # Preprocess annotations: convert to (start, end, stage)
     processed_annots = [
         (float(a['Start']), float(a['Start']) + float(a['Duration']), int(a['EventConcept'].split('|')[1]))
@@ -121,6 +141,9 @@ def annotation_to_ss_epochs(annotations):
 
 
 def get_record_ids():
+    """
+    :return: a list of records from the mesa sleep csv
+    """
     ids = []
     with open("mesa-sleep-dataset-0.7.0.csv", 'r') as file:
         reader = csv.reader(file)
