@@ -14,22 +14,28 @@ testing RCMs in the risk_classification folder.
 
 PPGtoBP contains the code for blood pressure estimation from MESA's PPG data.
 
-``` bash
+```bash
 ├── ECGtoSS
 │   ├── __init__.py
 │   ├── data
 │   │   ├── errors.txt
 │   │   ├── mesa_aligned_data
-│   │   │   ├── patient_aligned_data  (HOW TO INDICATE MULTIPLE OF THESE)
+│   │   │   ├── mesa-sleep-<id>.json
+│   │   │   └── ...
 │   │   └── mimic_aligned_data
-│   │       ├── patient_id_subsets (HOW TO INDICATE MULTIPLE OF THESE)
-│   │       │   ├── patient_ids  (HOW TO INDICATE MULTIPLE OF THESE)
-│   │       │   │   ├── patient_aligned_data  (HOW TO INDICATE MULTIPLE OF THESE)
+│   │       ├── p<subset>
+│   │       │   ├── p<id>
+│   │       │   │   ├── <instance>.json
+│   │       │   │   └── ...
+│   │       │   └── ...
+│   │       └── ...
 │   ├── ecg_to_ss_full.py
 │   ├── risk_classification
 │   │   ├── __init__.py
 │   │   ├── accuracy_results
-│   │   │   ├── saved_results_data (HOW TO INDICATE MULTIPLE OF THESE)
+│   │   │   ├── <results_instance>.csv
+│   │   │   ├── <results_instance>.npy
+│   │   │   └── ...
 │   │   ├── example_script.py
 │   │   ├── mimic_data
 │   │   │   ├── ADMISSIONS.csv
