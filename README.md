@@ -10,7 +10,8 @@ pressure and sleep stage data.
 
 ## File Structure
 ECGtoSS contains the code for sleep stage estimation from MIMIC III's ECG data as well as the code for training and 
-testing RCMs in the risk_classification folder.
+testing RCMs in the risk_classification folder. The time2feat folder contains a copy of the following repo:
+https://github.com/softlab-unimore/time2feat.
 
 PPGtoBP contains the code for blood pressure estimation from MESA's PPG data.
 
