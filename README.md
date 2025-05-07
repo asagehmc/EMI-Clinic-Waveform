@@ -147,8 +147,8 @@ the ECGtoSS folder.
 cd ECGtoSS/risk_classification
 ```
 Then, example_script.py contains examples of how to build RCMs from the aligned data that is stored from MIMIC III
-and MESA. To get fixed block instances of six hours from MIMIC III, run lines 28-75 of example_script.py, and for MESA,
-run lines 113-140.
+and MESA. To get fixed block instances of six hours from MIMIC III, run lines 26-75 of example_script.py, and for MESA,
+run lines 111-140.
 
 
 ## Contributors

@@ -143,27 +143,34 @@ def get_balanced_job(number_pool, number_job):
 
 def feature_extraction(ts_list: (list, np.array), batch_size: int = -1, p: int = 1):
     """ Multiprocessing implementation of the feature extraction step """
-    # Define the number of processors to use0
-    max_pool = mp.cpu_count() if p == -1 else p
-    num_batch = (len(ts_list) // batch_size) + 1
-    max_pool = num_batch if num_batch < max_pool else max_pool
+    # Define the number of processors to use
+    try:
+        max_pool = mp.cpu_count() if p == -1 else p
+        num_batch = (len(ts_list) // batch_size) + 1
+        max_pool = num_batch if num_batch < max_pool else max_pool
 
-    # ToDo FDB: improve balance records between jobs
-    balance_job = get_balanced_job(number_pool=max_pool, number_job=len(ts_list))
-    # print('Feature extraction with {} processor and {} batch size'.format(max_pool, batch_size))
+        # ToDo FDB: improve balance records between jobs
+        balance_job = get_balanced_job(number_pool=max_pool, number_job=len(ts_list))
+        # print('Feature extraction with {} processor and {} batch size'.format(max_pool, batch_size))
 
-    index = 0
-    list_arguments = []
-    for i, size in enumerate(balance_job):
-        list_arguments.append((ts_list[index:index + size], batch_size, i))
-        index += size
+        index = 0
+        list_arguments = []
+        for i, size in enumerate(balance_job):
+            list_arguments.append((ts_list[index:index + size], batch_size, i))
+            index += size
 
-    # Multi processing script execution
-    pool = mp.Pool(max_pool)
-    extraction_feats = pool.starmap(feature_extraction_simple, list_arguments)
-    pool.close()
-    pool.join()
+        # # Multi processing script execution
+        # pool = mp.Pool(max_pool)
+        # extraction_feats = pool.starmap(feature_extraction_simple, list_arguments)
+        # pool.close()
+        # pool.join()
 
-    # Concatenate all results
-    df_features = pd.concat(extraction_feats, axis=0, ignore_index=True)
-    return df_features
+        extraction_feats = [feature_extraction_simple(*args) for args in list_arguments]
+
+        # Concatenate all results
+        df_features = pd.concat(extraction_feats, axis=0, ignore_index=True)
+
+        return df_features
+    except Exception as e:
+        print(e)
+        return

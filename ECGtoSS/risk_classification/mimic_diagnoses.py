@@ -28,7 +28,7 @@ def get_leadii_dataframes(patients,admissions,diagnoses):
     :return: pd df subset of each pd df with ecg lead ii data
     """
     # gets ids with desired data
-    file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'filtered_ABP_II.txt')
+    file_path = "mimic_data/filtered_ABP_II.txt"
     with open(file_path, 'r') as file:
         python_dict_from_file = json.load(file)
     leadii_sub_ids = [int(x.split('/')[1][1:]) for x in python_dict_from_file.keys()]

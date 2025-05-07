@@ -19,11 +19,9 @@ from sklearn.model_selection import cross_validate, train_test_split, GridSearch
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.pipeline import Pipeline
 
-os.chdir(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'time2feat'))
 from t2f.extraction.extractor import feature_extraction
 from t2f.utils.importance_old import feature_selection
 from t2f.model.clustering import ClusterWrapper
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
 # Standard Supervised Models: Cross-Validation & Test Set Scoring
@@ -478,9 +476,9 @@ def compare_unsupervised_clustering_MESA(X_feats, n_clusters=2):
     :return: np array, array of predicted labels
     """
     y_preds = []
-    # for i in range(10):
     for model_type in ['Hierarchical', 'KMeans', 'Spectral']:
         for transform_type in ['std', 'minmax', 'robust']:
+            print(model_type, " ", transform_type)
             # Feature selection
             context = {'model_type': model_type, 'transform_type': transform_type}
             top_feats = feature_selection(X_feats, labels={}, context=context)

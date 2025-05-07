@@ -68,11 +68,11 @@ for arr in start_before_sleep_arrays:
 start_before_sleep_arrays_m0 = preprocessing.mean_zero(start_before_sleep_arrays)
 
 # summary statistics features for fixed 6 hour blocks
-X_sum, y_sum, patient_ids_sum = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, True, True, False, patients_leadii, admissions_leadii, diagnoses_leadii, 6)
+X_sum, y_sum, patient_ids_sum = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, 'MIMIC', True, True, False, patients_leadii, admissions_leadii, diagnoses_leadii, 6)
 # summary statistics + age + sex features for fixed 6 hour blocks
-X_sum_dem, y_sum_dem, patient_ids_sum_dem = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, True, True, True, patients_leadii, admissions_leadii, diagnoses_leadii, 6)
+X_sum_dem, y_sum_dem, patient_ids_sum_dem = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, 'MIMIC', True, True, True, patients_leadii, admissions_leadii, diagnoses_leadii, 6)
 # fixed block 6 hours
-X_ts, y_ts, patient_ids_ts = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, False, True, False, patients_leadii, admissions_leadii, diagnoses_leadii, 6, 6)
+X_ts, y_ts, patient_ids_ts = preprocessing.get_features(patient_ids, start_before_sleep_arrays_m0, 'MIMIC', False, True, False, patients_leadii, admissions_leadii, diagnoses_leadii, 6, 6)
 
 # feature extraction using tsfresh package
 X_ts_feats = models.calculate_features(X_ts)
@@ -101,7 +101,7 @@ X_smote, y_smote = sm.fit_resample(X_ts_feats.dropna(axis=1, inplace=False), y_t
 
 # for different levels of supervision
 # 10 runs of each combination of model type and transform type, stores features selected from best performing models
-unsupervised_accuracies = compare_averaged_unsupervised_clustering(X_smote, y_smote, 10)
+unsupervised_accuracies = models.compare_averaged_unsupervised_clustering(X_smote, y_smote, 10)
 supervised_accuracies_20, all_models_dict_20 = models.get_selected_features_and_scores_over_n_runs(10, X_smote, y_smote, 0.2)
 supervised_accuracies_50, all_models_dict_50 = models.get_selected_features_and_scores_over_n_runs(10, X_smote, y_smote, 0.5)
 supervised_accuracies_80, all_models_dict_80 = models.get_selected_features_and_scores_over_n_runs(10, X_smote, y_smote, 0.8)
@@ -148,7 +148,7 @@ for arr in X_ts_6:
     # reconcatenate
     arr = np.concatenate((sbp_rmed.reshape((1, -1)), dbp_rmed.reshape((1, -1)), ss.reshape((1, -1))), axis=0)
     X_ts_6_rmed += [arr]
-X_ts_6_rmed = np.array(X_ts_6_m0_rmed)
+X_ts_6_rmed = np.array(X_ts_6_rmed)
 
 # mean zero the blood pressure signals
 X_ts_6_m0 = np.array(preprocessing.mean_zero(X_ts_6_rmed))
@@ -171,7 +171,7 @@ for i in range(9):
         model_type = 'KMeans'
     else:
         model_type = 'Spectral'
-    
+
     # get transform type
     if i % 3 == 0:
         transform_type = 'std'
@@ -179,6 +179,6 @@ for i in range(9):
         transform_type = 'minmax'
     else:
         transform_type = 'robust'
-    
+
     # visualize
     visualizations.clustering_visualization(X_reduced, y_preds[i], 2, model_type, transform_type)
